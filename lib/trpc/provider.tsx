@@ -2,9 +2,10 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink } from "@trpc/client";
-import { useState, useEffect, createContext, useContext, useRef, useMemo } from "react";
+import { useState, createContext, useContext, useMemo } from "react";
 import superjson from "superjson";
 import { trpc } from "./client";
+import { getAuthToken } from "@dynamic-labs/sdk-react-core";
 
 function getBaseUrl() {
   if (typeof window !== "undefined") return "";
@@ -31,14 +32,6 @@ interface TRPCProviderProps {
 }
 
 export function TRPCProvider({ children, authToken }: TRPCProviderProps) {
-  // Use a ref to store the current token so the headers function always gets the latest
-  const tokenRef = useRef<string | null>(authToken ?? null);
-  
-  // Update the ref whenever authToken changes
-  useEffect(() => {
-    tokenRef.current = authToken ?? null;
-  }, [authToken]);
-
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
       queries: {
@@ -49,7 +42,7 @@ export function TRPCProvider({ children, authToken }: TRPCProviderProps) {
     },
   }));
   
-  // Create tRPC client that reads from the ref
+  // Create tRPC client that gets fresh token on each request
   const [trpcClient] = useState(() => 
     trpc.createClient({
       links: [
@@ -57,8 +50,9 @@ export function TRPCProvider({ children, authToken }: TRPCProviderProps) {
           url: `${getBaseUrl()}/api/trpc`,
           transformer: superjson,
           async headers() {
-            // Get fresh token from ref on each request
-            const token = tokenRef.current;
+            // Get fresh token on each request using Dynamic SDK's getAuthToken
+            // This always returns the latest token from the SDK's internal state
+            const token = getAuthToken();
             if (token) {
               return {
                 authorization: `Bearer ${token}`,

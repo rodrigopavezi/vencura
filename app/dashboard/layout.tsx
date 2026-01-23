@@ -17,50 +17,59 @@ function DashboardContent({ children }: { children: ReactNode }) {
   const { user, sdkHasLoaded } = useDynamicContext();
   const router = useRouter();
   const isAuthenticated = !!user;
-  const [authToken, setAuthToken] = useState<string | null>(null);
-  const [tokenCheckComplete, setTokenCheckComplete] = useState(false);
+  // Track the authentication state that triggered the token check
+  const [checkedForAuth, setCheckedForAuth] = useState<{ sdkLoaded: boolean; authenticated: boolean } | null>(null);
 
-  // Get auth token when user is authenticated
+  // Poll for auth token availability when user is authenticated
   useEffect(() => {
-    if (sdkHasLoaded && isAuthenticated) {
-      // Try to get the token immediately
-      const token = getAuthToken();
-      console.log("[Dashboard] Initial getAuthToken:", token ? "token present" : "no token");
-      
-      if (token) {
-        setAuthToken(token);
-        setTokenCheckComplete(true);
-      } else {
-        // Poll for token if not immediately available
-        let attempts = 0;
-        const interval = setInterval(() => {
-          attempts++;
-          const token = getAuthToken();
-          if (token) {
-            console.log(`[Dashboard] Token obtained after ${attempts} attempts`);
-            setAuthToken(token);
-            setTokenCheckComplete(true);
-            clearInterval(interval);
-          }
-        }, 100);
-
-        // Mark as complete after 5 seconds even if no token (let queries fail gracefully)
-        const timeout = setTimeout(() => {
-          clearInterval(interval);
-          setTokenCheckComplete(true);
-          console.warn(`[Dashboard] Auth token not available after 5 seconds (${attempts} attempts). User email: ${user?.email}`);
-        }, 5000);
-
-        return () => {
-          clearInterval(interval);
-          clearTimeout(timeout);
-        };
-      }
-    } else {
-      setAuthToken(null);
-      setTokenCheckComplete(false);
+    if (!sdkHasLoaded || !isAuthenticated) {
+      return;
     }
+
+    // Check if token is already available
+    const token = getAuthToken();
+    console.log("[Dashboard] Initial getAuthToken:", token ? "token present" : "no token");
+    
+    if (token) {
+      // Use setTimeout to avoid synchronous setState in effect
+      const timeoutId = setTimeout(() => {
+        setCheckedForAuth({ sdkLoaded: sdkHasLoaded, authenticated: isAuthenticated });
+      }, 0);
+      return () => clearTimeout(timeoutId);
+    }
+
+    // Poll for token if not immediately available
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attempts++;
+      const token = getAuthToken();
+      if (token) {
+        console.log(`[Dashboard] Token obtained after ${attempts} attempts`);
+        setCheckedForAuth({ sdkLoaded: sdkHasLoaded, authenticated: isAuthenticated });
+        clearInterval(interval);
+      }
+    }, 100);
+
+    // Mark as complete after 5 seconds even if no token (let queries fail gracefully)
+    const timeout = setTimeout(() => {
+      clearInterval(interval);
+      setCheckedForAuth({ sdkLoaded: sdkHasLoaded, authenticated: isAuthenticated });
+      console.warn(`[Dashboard] Auth token not available after 5 seconds (${attempts} attempts). User email: ${user?.email}`);
+    }, 5000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
   }, [sdkHasLoaded, isAuthenticated, user?.email]);
+
+  // Token check is complete if we've checked for the current auth state
+  const tokenCheckComplete = checkedForAuth?.sdkLoaded === sdkHasLoaded && 
+                              checkedForAuth?.authenticated === isAuthenticated &&
+                              isAuthenticated;
+  
+  // Get current token for TRPCProvider
+  const currentToken = sdkHasLoaded && isAuthenticated ? getAuthToken() : null;
 
   useEffect(() => {
     if (sdkHasLoaded && !isAuthenticated) {
@@ -91,7 +100,7 @@ function DashboardContent({ children }: { children: ReactNode }) {
   }
 
   return (
-    <TRPCProvider authToken={authToken}>
+    <TRPCProvider authToken={tokenCheckComplete ? currentToken : null}>
       <div className="flex h-screen bg-background">
         <Sidebar />
         <div className="flex flex-1 flex-col overflow-hidden">
