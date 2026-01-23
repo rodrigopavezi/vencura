@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc/client";
 
 interface Conversation {
@@ -37,7 +37,7 @@ interface UseXmtpReturn {
 }
 
 export function useXmtp({ walletId }: UseXmtpOptions): UseXmtpReturn {
-  const [error, setError] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
 
   // Get conversations query
@@ -58,23 +58,18 @@ export function useXmtp({ walletId }: UseXmtpOptions): UseXmtpReturn {
     }
   );
 
-  // Handle query errors via useEffect
-  useEffect(() => {
-    if (conversationsQuery.error) {
-      setError(conversationsQuery.error.message);
-    }
-  }, [conversationsQuery.error]);
-
-  useEffect(() => {
-    if (messagesQuery.error) {
-      setError(messagesQuery.error.message);
-    }
-  }, [messagesQuery.error]);
+  // Combine errors from queries and mutations
+  const error = useMemo(() => {
+    if (mutationError) return mutationError;
+    if (conversationsQuery.error) return conversationsQuery.error.message;
+    if (messagesQuery.error) return messagesQuery.error.message;
+    return null;
+  }, [mutationError, conversationsQuery.error, messagesQuery.error]);
 
   // Mutations
   const sendMessageMutation = trpc.messaging.sendMessage.useMutation({
     onError: (err) => {
-      setError(err.message);
+      setMutationError(err.message);
     },
   });
 
@@ -83,7 +78,7 @@ export function useXmtp({ walletId }: UseXmtpOptions): UseXmtpReturn {
       conversationsQuery.refetch();
     },
     onError: (err) => {
-      setError(err.message);
+      setMutationError(err.message);
     },
   });
 
