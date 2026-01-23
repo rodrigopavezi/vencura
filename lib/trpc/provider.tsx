@@ -2,7 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink } from "@trpc/client";
-import { useState, createContext, useContext, useMemo } from "react";
+import { useState, createContext, useContext, useMemo, useRef, useEffect } from "react";
 import superjson from "superjson";
 import { trpc } from "./client";
 import { getAuthToken } from "@dynamic-labs/sdk-react-core";
@@ -31,6 +31,11 @@ interface TRPCProviderProps {
   authToken?: string | null;
 }
 
+// Use a module-level ref to store the current token
+// This allows the headers function to access the latest token
+// even though it's called outside the React component tree
+let currentAuthToken: string | null = null;
+
 export function TRPCProvider({ children, authToken }: TRPCProviderProps) {
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
@@ -41,6 +46,12 @@ export function TRPCProvider({ children, authToken }: TRPCProviderProps) {
       },
     },
   }));
+
+  // Keep the module-level token in sync with the prop
+  useEffect(() => {
+    currentAuthToken = authToken ?? null;
+    console.log("[TRPCProvider] Token updated:", currentAuthToken ? "present" : "null");
+  }, [authToken]);
   
   // Create tRPC client that gets fresh token on each request
   const [trpcClient] = useState(() => 
@@ -50,9 +61,10 @@ export function TRPCProvider({ children, authToken }: TRPCProviderProps) {
           url: `${getBaseUrl()}/api/trpc`,
           transformer: superjson,
           async headers() {
-            // Get fresh token on each request using Dynamic SDK's getAuthToken
-            // This always returns the latest token from the SDK's internal state
-            const token = getAuthToken();
+            // First try the module-level token (set by React component)
+            // Then fall back to getAuthToken() from Dynamic SDK
+            const token = currentAuthToken || getAuthToken();
+            console.log("[TRPCProvider] headers() - token:", token ? "present" : "null");
             if (token) {
               return {
                 authorization: `Bearer ${token}`,

@@ -66,10 +66,17 @@ const handler = async (req: Request) => {
   const user = await getUserFromRequest(req);
   
   // Debug logging (visible in Vercel logs)
+  const url = new URL(req.url);
+  const procedurePath = url.pathname.replace("/api/trpc/", "");
+  
   if (!jwt) {
-    console.log("[tRPC] No JWT token in request");
+    console.log(`[tRPC] No JWT token in request for: ${procedurePath}`);
+    console.log(`[tRPC] Authorization header: ${req.headers.get("authorization") ? "present but invalid" : "missing"}`);
   } else if (!user) {
-    console.log("[tRPC] JWT present but user extraction failed");
+    console.log(`[tRPC] JWT present but user extraction failed for: ${procedurePath}`);
+    console.log(`[tRPC] JWT prefix: ${jwt.substring(0, 30)}...`);
+  } else {
+    console.log(`[tRPC] Authenticated request for ${procedurePath} by user: ${user.email}`);
   }
 
   return fetchRequestHandler({

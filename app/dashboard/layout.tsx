@@ -17,8 +17,12 @@ function DashboardContent({ children }: { children: ReactNode }) {
   const { user, sdkHasLoaded } = useDynamicContext();
   const router = useRouter();
   const isAuthenticated = !!user;
-  // Track the authentication state that triggered the token check
-  const [checkedForAuth, setCheckedForAuth] = useState<{ sdkLoaded: boolean; authenticated: boolean } | null>(null);
+  // Track the authentication state and the confirmed token
+  const [authState, setAuthState] = useState<{ 
+    sdkLoaded: boolean; 
+    authenticated: boolean; 
+    token: string | null;
+  } | null>(null);
 
   // Poll for auth token availability when user is authenticated
   useEffect(() => {
@@ -28,12 +32,12 @@ function DashboardContent({ children }: { children: ReactNode }) {
 
     // Check if token is already available
     const token = getAuthToken();
-    console.log("[Dashboard] Initial getAuthToken:", token ? "token present" : "no token");
+    console.log("[Dashboard] Initial getAuthToken:", token ? `present (${token.substring(0, 20)}...)` : "no token");
     
     if (token) {
       // Use setTimeout to avoid synchronous setState in effect
       const timeoutId = setTimeout(() => {
-        setCheckedForAuth({ sdkLoaded: sdkHasLoaded, authenticated: isAuthenticated });
+        setAuthState({ sdkLoaded: sdkHasLoaded, authenticated: isAuthenticated, token });
       }, 0);
       return () => clearTimeout(timeoutId);
     }
@@ -44,8 +48,8 @@ function DashboardContent({ children }: { children: ReactNode }) {
       attempts++;
       const token = getAuthToken();
       if (token) {
-        console.log(`[Dashboard] Token obtained after ${attempts} attempts`);
-        setCheckedForAuth({ sdkLoaded: sdkHasLoaded, authenticated: isAuthenticated });
+        console.log(`[Dashboard] Token obtained after ${attempts} attempts: ${token.substring(0, 20)}...`);
+        setAuthState({ sdkLoaded: sdkHasLoaded, authenticated: isAuthenticated, token });
         clearInterval(interval);
       }
     }, 100);
@@ -53,8 +57,11 @@ function DashboardContent({ children }: { children: ReactNode }) {
     // Mark as complete after 5 seconds even if no token (let queries fail gracefully)
     const timeout = setTimeout(() => {
       clearInterval(interval);
-      setCheckedForAuth({ sdkLoaded: sdkHasLoaded, authenticated: isAuthenticated });
-      console.warn(`[Dashboard] Auth token not available after 5 seconds (${attempts} attempts). User email: ${user?.email}`);
+      const finalToken = getAuthToken() ?? null;
+      setAuthState({ sdkLoaded: sdkHasLoaded, authenticated: isAuthenticated, token: finalToken });
+      if (!finalToken) {
+        console.warn(`[Dashboard] Auth token not available after 5 seconds (${attempts} attempts). User email: ${user?.email}`);
+      }
     }, 5000);
 
     return () => {
@@ -63,13 +70,14 @@ function DashboardContent({ children }: { children: ReactNode }) {
     };
   }, [sdkHasLoaded, isAuthenticated, user?.email]);
 
-  // Token check is complete if we've checked for the current auth state
-  const tokenCheckComplete = checkedForAuth?.sdkLoaded === sdkHasLoaded && 
-                              checkedForAuth?.authenticated === isAuthenticated &&
-                              isAuthenticated;
+  // Token check is complete if we've checked for the current auth state and have a token
+  const tokenCheckComplete = authState?.sdkLoaded === sdkHasLoaded && 
+                              authState?.authenticated === isAuthenticated &&
+                              isAuthenticated &&
+                              !!authState?.token;
   
-  // Get current token for TRPCProvider
-  const currentToken = sdkHasLoaded && isAuthenticated ? getAuthToken() : null;
+  // Use the stored token from the auth state
+  const currentToken = authState?.token ?? null;
 
   useEffect(() => {
     if (sdkHasLoaded && !isAuthenticated) {

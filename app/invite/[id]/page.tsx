@@ -237,8 +237,12 @@ function InviteContentInner({ invitationId }: { invitationId: string }) {
 function InviteContent({ invitationId }: { invitationId: string }) {
   const { user, sdkHasLoaded } = useDynamicContext();
   const isAuthenticated = !!user;
-  // Track the authentication state that triggered the token check
-  const [checkedForAuth, setCheckedForAuth] = useState<{ sdkLoaded: boolean; authenticated: boolean } | null>(null);
+  // Track the authentication state and the confirmed token
+  const [authState, setAuthState] = useState<{ 
+    sdkLoaded: boolean; 
+    authenticated: boolean;
+    token: string | null;
+  } | null>(null);
 
   // Poll for auth token availability when user is authenticated
   useEffect(() => {
@@ -248,19 +252,24 @@ function InviteContent({ invitationId }: { invitationId: string }) {
 
     // Check if token is already available
     const token = getAuthToken();
+    console.log("[Invite] Initial getAuthToken:", token ? `present (${token.substring(0, 20)}...)` : "no token");
+    
     if (token) {
       // Use setTimeout to avoid synchronous setState in effect
       const timeoutId = setTimeout(() => {
-        setCheckedForAuth({ sdkLoaded: sdkHasLoaded, authenticated: isAuthenticated });
+        setAuthState({ sdkLoaded: sdkHasLoaded, authenticated: isAuthenticated, token });
       }, 0);
       return () => clearTimeout(timeoutId);
     }
 
     // Poll for token if not immediately available
+    let attempts = 0;
     const interval = setInterval(() => {
+      attempts++;
       const token = getAuthToken();
       if (token) {
-        setCheckedForAuth({ sdkLoaded: sdkHasLoaded, authenticated: isAuthenticated });
+        console.log(`[Invite] Token obtained after ${attempts} attempts`);
+        setAuthState({ sdkLoaded: sdkHasLoaded, authenticated: isAuthenticated, token });
         clearInterval(interval);
       }
     }, 100);
@@ -268,7 +277,11 @@ function InviteContent({ invitationId }: { invitationId: string }) {
     // Mark as complete after 5 seconds even if no token
     const timeout = setTimeout(() => {
       clearInterval(interval);
-      setCheckedForAuth({ sdkLoaded: sdkHasLoaded, authenticated: isAuthenticated });
+      const finalToken = getAuthToken() ?? null;
+      setAuthState({ sdkLoaded: sdkHasLoaded, authenticated: isAuthenticated, token: finalToken });
+      if (!finalToken) {
+        console.warn(`[Invite] Auth token not available after 5 seconds`);
+      }
     }, 5000);
 
     return () => {
@@ -277,12 +290,13 @@ function InviteContent({ invitationId }: { invitationId: string }) {
     };
   }, [sdkHasLoaded, isAuthenticated]);
 
-  // Token check is complete if we've checked for the current auth state
-  const tokenCheckComplete = checkedForAuth?.sdkLoaded === sdkHasLoaded && 
-                              checkedForAuth?.authenticated === isAuthenticated;
+  // Token check is complete if we've checked for the current auth state and have a token
+  const tokenCheckComplete = authState?.sdkLoaded === sdkHasLoaded && 
+                              authState?.authenticated === isAuthenticated &&
+                              !!authState?.token;
   
-  // Get current token for isTokenReady check
-  const currentToken = sdkHasLoaded && isAuthenticated ? getAuthToken() : null;
+  // Use the stored token from the auth state
+  const currentToken = authState?.token ?? null;
 
   return (
     <TRPCProvider authToken={tokenCheckComplete ? currentToken : null}>
