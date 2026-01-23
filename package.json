@@ -26,6 +26,7 @@
     "@lit-protocol/contracts-sdk": "7.4.0",
     "@lit-protocol/lit-auth-client": "7.4.0",
     "@lit-protocol/lit-node-client": "7.4.0",
+    "@lit-protocol/types": "7.4.0",
     "@prisma/adapter-better-sqlite3": "^7.3.0",
     "@prisma/client": "^7.3.0",
     "@prisma/client-runtime-utils": "^7.3.0",

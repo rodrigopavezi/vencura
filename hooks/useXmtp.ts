@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc/client";
 
 interface Conversation {
@@ -46,9 +46,6 @@ export function useXmtp({ walletId }: UseXmtpOptions): UseXmtpReturn {
     {
       enabled: !!walletId,
       retry: 1,
-      onError: (err) => {
-        setError(err.message);
-      },
     }
   );
 
@@ -58,11 +55,21 @@ export function useXmtp({ walletId }: UseXmtpOptions): UseXmtpReturn {
     {
       enabled: !!walletId && !!currentConversationId,
       retry: 1,
-      onError: (err) => {
-        setError(err.message);
-      },
     }
   );
+
+  // Handle query errors via useEffect
+  useEffect(() => {
+    if (conversationsQuery.error) {
+      setError(conversationsQuery.error.message);
+    }
+  }, [conversationsQuery.error]);
+
+  useEffect(() => {
+    if (messagesQuery.error) {
+      setError(messagesQuery.error.message);
+    }
+  }, [messagesQuery.error]);
 
   // Mutations
   const sendMessageMutation = trpc.messaging.sendMessage.useMutation({

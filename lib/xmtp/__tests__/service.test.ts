@@ -111,7 +111,7 @@ describe("XMTP Service", () => {
           senderInboxId: "0x" + "e".repeat(40),
           content: { text: "Hello!" },
           sentAtNs: BigInt(Date.now() * 1000000),
-          kind: 1, // GroupMessageKind.Application
+          kind: 0, // GroupMessageKind.Application
         },
       ]);
 

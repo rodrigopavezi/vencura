@@ -12,26 +12,14 @@ import {
   AUTH_METHOD_SCOPES,
 } from "./actions/verifyJwt";
 
-// Define types locally to avoid importing from @lit-protocol/types at module load time
-export interface SessionSigsMap {
-  [key: string]: {
-    sig: string;
-    derivedVia: string;
-    signedMessage: string;
-    address: string;
-    algo?: string;
-  };
-}
+import type {
+  SessionSigsMap,
+  AuthMethod,
+  LitResourceAbilityRequest,
+} from "@lit-protocol/types";
 
-export interface AuthMethod {
-  authMethodType: number;
-  accessToken: string;
-}
-
-export interface LitResourceAbilityRequest {
-  resource: { getResourceKey: () => string };
-  ability: string;
-}
+// Re-export types for use by other modules
+export type { SessionSigsMap, AuthMethod, LitResourceAbilityRequest };
 
 export interface PKPInfo {
   tokenId: string;

@@ -1,4 +1,8 @@
-import { Client, IdentifierKind, GroupMessageKind } from "@xmtp/node-sdk";
+import { Client } from "@xmtp/node-sdk";
+
+// Const enum values to avoid isolatedModules issue
+const IDENTIFIER_KIND_ETHEREUM = 0 as const; // IdentifierKind.Ethereum
+const GROUP_MESSAGE_KIND_APPLICATION = 0 as const; // GROUP_MESSAGE_KIND_APPLICATION
 import type { Signer, Identifier } from "@xmtp/node-sdk";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, rmSync, readdirSync } from "node:fs";
@@ -106,7 +110,7 @@ export function createXmtpSigner(
     type: "EOA",
     getIdentifier: () => ({
       identifier: walletAddress,
-      identifierKind: IdentifierKind.Ethereum,
+      identifierKind: IDENTIFIER_KIND_ETHEREUM,
     }),
     signMessage: async (message: string): Promise<Uint8Array> => {
       const signature = await signMessageFn(message);
@@ -316,7 +320,8 @@ export async function getConversations(
 
   return conversations.map((conv) => ({
     id: conv.id,
-    peerAddress: conv.peerInboxId,
+    // peerInboxId only exists on DM conversations, use id as fallback for groups
+    peerAddress: "peerInboxId" in conv ? conv.peerInboxId : conv.id,
     createdAt: new Date(conv.createdAt),
   }));
 }
@@ -348,7 +353,7 @@ export async function getMessages(
   // Filter to only include application messages (not membership changes/system messages)
   // and properly extract text content
   return messages
-    .filter((msg) => msg.kind === GroupMessageKind.Application)
+    .filter((msg) => msg.kind === GROUP_MESSAGE_KIND_APPLICATION)
     .map((msg) => {
       // Extract text content - could be a string directly or nested in an object
       let textContent: string;
@@ -435,7 +440,7 @@ export async function startConversation(
   // Create identifier for the peer address
   const peerIdentifier: Identifier = {
     identifier: peerAddress,
-    identifierKind: IdentifierKind.Ethereum,
+    identifierKind: IDENTIFIER_KIND_ETHEREUM,
   };
   
   // Check if peer can receive XMTP messages
@@ -501,7 +506,7 @@ export async function canMessage(
   // Create identifier for the peer address
   const peerIdentifier: Identifier = {
     identifier: peerAddress,
-    identifierKind: IdentifierKind.Ethereum,
+    identifierKind: IDENTIFIER_KIND_ETHEREUM,
   };
   
   const canMessageResults = await client.canMessage([peerIdentifier]);
