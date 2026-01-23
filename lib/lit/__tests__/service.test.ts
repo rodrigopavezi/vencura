@@ -18,6 +18,7 @@ describe("Lit Service", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(litClient.getLitClient).mockResolvedValue(mockLitClient as any);
   });
 
@@ -48,6 +49,7 @@ describe("Lit Service", () => {
 
       const pkpPublicKey = "04" + "b".repeat(128);
       const message = "Hello, World!";
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sessionSigs = { nodeUrl: { sig: "test" } } as any;
 
       const result = await signMessage(pkpPublicKey, message, sessionSigs);
@@ -80,6 +82,7 @@ describe("Lit Service", () => {
         gasPrice: "20000000000",
         chainId: 1,
       };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sessionSigs = { nodeUrl: { sig: "test" } } as any;
 
       const result = await signTransaction(pkpPublicKey, transaction, sessionSigs);

@@ -3,7 +3,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Wallet, Check, X, Clock } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { toast } from "sonner";
@@ -13,8 +12,8 @@ interface InvitationCardProps {
     id: string;
     role: string;
     status: string;
-    expiresAt: Date;
-    createdAt: Date;
+    expiresAt: Date | string;
+    createdAt: Date | string;
     wallet: {
       id: string;
       name: string;
@@ -24,8 +23,13 @@ interface InvitationCardProps {
       id: string;
       email: string;
       name: string | null;
-    };
-    inviteeEmail?: string;
+    } | null;
+    invitee?: {
+      id: string;
+      email: string;
+      name: string | null;
+    } | null;
+    inviteeEmail?: string | null;
   };
   type: "received" | "sent";
 }

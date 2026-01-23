@@ -72,13 +72,13 @@ export const JWT_VERIFY_AND_SIGN_LIT_ACTION_CODE = `
 // Keep the old action for backwards compatibility
 export const JWT_VERIFY_LIT_ACTION_CODE = JWT_VERIFY_AND_SIGN_LIT_ACTION_CODE;
 
+import { keccak256, toBytes } from "viem";
+
 /**
  * Compute the auth method ID from a user's email
  * This must match the computation in the Lit Action
  */
 export function computeAuthMethodId(userEmail: string): string {
-  // Import dynamically to avoid issues
-  const { keccak256, toBytes } = require("viem");
   return keccak256(toBytes(userEmail.toLowerCase()));
 }
 

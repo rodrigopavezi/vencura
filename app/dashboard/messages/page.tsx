@@ -23,7 +23,6 @@ export default function MessagesPage() {
     error: xmtpError,
     conversations,
     conversationsLoading,
-    loadConversations,
     getMessages,
     messages,
     messagesLoading,

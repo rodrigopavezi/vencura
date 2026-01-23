@@ -177,7 +177,7 @@ export function SendTransactionForm({ walletId, disabled, role }: SendTransactio
                   rows={3}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Help the owner understand why you're requesting this transaction
+                  Help the owner understand why you are requesting this transaction
                 </p>
               </div>
             )}

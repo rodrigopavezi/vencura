@@ -1,9 +1,12 @@
 // Using dynamic import to avoid loading Lit SDK at module initialization time
 // This prevents the deprecation warning from appearing on every API request
 
-let litNodeClient: any = null;
+import type { LitNodeClient as LitNodeClientType } from "@lit-protocol/lit-node-client";
+import type { LIT_NETWORKS_KEYS } from "@lit-protocol/types";
 
-export async function getLitClient(): Promise<any> {
+let litNodeClient: LitNodeClientType | null = null;
+
+export async function getLitClient(): Promise<LitNodeClientType> {
   if (litNodeClient) {
     return litNodeClient;
   }
@@ -11,10 +14,10 @@ export async function getLitClient(): Promise<any> {
   // Dynamic import to load Lit SDK only when needed
   const { LitNodeClient } = await import("@lit-protocol/lit-node-client");
   
-  const network = process.env.LIT_NETWORK || "datil-dev";
+  const network = (process.env.LIT_NETWORK || "datil-dev") as LIT_NETWORKS_KEYS;
   
   litNodeClient = new LitNodeClient({
-    litNetwork: network as any,
+    litNetwork: network,
     debug: false,
   });
 

@@ -1,11 +1,9 @@
 import { z } from "zod";
-import { router, protectedProcedure, publicProcedure } from "../init";
+import { router, protectedProcedure } from "../init";
 import { TRPCError } from "@trpc/server";
 import * as litService from "@/lib/lit/service";
 import * as blockchainService from "@/lib/blockchain/service";
 import { parseEther } from "viem";
-
-const AccessRole = z.enum(["VIEW_ONLY", "CO_SIGNER", "FULL_ACCESS"]);
 
 export const walletRouter = router({
   /**

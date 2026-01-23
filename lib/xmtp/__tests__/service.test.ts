@@ -64,6 +64,7 @@ describe("XMTP Service", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(Client.create).mockResolvedValue(mockClient as any);
   });
 

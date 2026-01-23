@@ -67,7 +67,7 @@ export default function WalletDetailPage({ params }: WalletDetailPageProps) {
       <div className="flex flex-col items-center justify-center py-12">
         <h2 className="text-xl font-semibold">Wallet not found</h2>
         <p className="text-muted-foreground mb-4">
-          The wallet you're looking for doesn't exist or you don't have access.
+          The wallet you are looking for does not exist or you do not have access.
         </p>
         <Button onClick={() => router.push("/dashboard/wallets")}>
           <ArrowLeft className="mr-2 h-4 w-4" />

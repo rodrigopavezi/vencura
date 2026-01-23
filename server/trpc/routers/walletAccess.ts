@@ -2,7 +2,6 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../init";
 import { TRPCError } from "@trpc/server";
 import * as emailService from "@/lib/email/service";
-import * as litService from "@/lib/lit/service";
 
 const AccessRole = z.enum(["VIEW_ONLY", "CO_SIGNER", "FULL_ACCESS"]);
 

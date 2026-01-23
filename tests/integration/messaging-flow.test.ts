@@ -7,7 +7,7 @@ import { cleanupDatabase } from "@/tests/utils/db";
 vi.mock("@/lib/lit/service", () => ({
   getSessionSigs: vi.fn().mockRejectedValue(new Error("XMTP requires client-side signer")),
   signMessage: vi.fn().mockRejectedValue(new Error("XMTP requires client-side signer")),
-  computeAuthMethodId: vi.fn((email) => "0x" + "a".repeat(64)),
+  computeAuthMethodId: vi.fn((_email: string) => "0x" + "a".repeat(64)),
 }));
 
 // Mock the XMTP service

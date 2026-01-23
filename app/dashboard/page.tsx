@@ -70,7 +70,7 @@ function WalletCardPreview({
 
 export default function DashboardPage() {
   const { data: wallets, isLoading: walletsLoading } = trpc.wallet.getAll.useQuery();
-  const { data: invitations, isLoading: invitationsLoading } = trpc.walletAccess.listInvitations.useQuery({ type: "received" });
+  const { data: invitations } = trpc.walletAccess.listInvitations.useQuery({ type: "received" });
 
   const totalWallets = (wallets?.owned?.length || 0) + (wallets?.shared?.length || 0);
   const pendingInvitations = invitations?.length || 0;

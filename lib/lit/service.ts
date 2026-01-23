@@ -28,6 +28,11 @@ export interface AuthMethod {
   accessToken: string;
 }
 
+export interface LitResourceAbilityRequest {
+  resource: { getResourceKey: () => string };
+  ability: string;
+}
+
 export interface PKPInfo {
   tokenId: string;
   publicKey: string;
@@ -164,10 +169,11 @@ export async function mintPKP(userEmail: string): Promise<PKPInfo> {
       ethAddress: pkpEthAddress,
       authMethodId, // Store this for JWT verification
     };
-  } catch (error: any) {
-    console.error("❌ Failed to mint PKP:", error.message || error);
-    if (error.reason) console.error("Reason:", error.reason);
-    if (error.code) console.error("Code:", error.code);
+  } catch (error: unknown) {
+    const err = error as { message?: string; reason?: string; code?: string };
+    console.error("❌ Failed to mint PKP:", err.message || error);
+    if (err.reason) console.error("Reason:", err.reason);
+    if (err.code) console.error("Code:", err.code);
     throw error;
   }
 }
@@ -248,7 +254,7 @@ async function getSessionSigsWithServerWallet(): Promise<SessionSigsMap> {
         ability: LIT_ABILITY.LitActionExecution,
       },
     ],
-    authNeededCallback: async (params: { uri?: string; expiration?: string; resourceAbilityRequests?: any }) => {
+    authNeededCallback: async (params: { uri?: string; expiration?: string; resourceAbilityRequests?: LitResourceAbilityRequest[] }) => {
       const toSign = await createSiweMessage({
         uri: params.uri!,
         expiration: params.expiration!,

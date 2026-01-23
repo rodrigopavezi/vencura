@@ -160,7 +160,7 @@ export function PendingProposals({ walletId, isOwner }: PendingProposalsProps) {
               <p>No transaction proposals yet</p>
               {!isOwner && (
                 <p className="text-sm mt-2">
-                  Use the "Propose" button to submit a transaction for owner approval
+                  Use the &quot;Propose&quot; button to submit a transaction for owner approval
                 </p>
               )}
             </div>

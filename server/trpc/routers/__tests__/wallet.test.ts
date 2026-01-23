@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createTestCaller } from "@/tests/utils/trpc";
 import { createUser, createWallet, createWalletAccess } from "@/tests/utils/factories";
-import { cleanupDatabase, disconnectDatabase, getTestPrisma } from "@/tests/utils/db";
+import { cleanupDatabase, getTestPrisma } from "@/tests/utils/db";
 
 // Mock the services
 vi.mock("@/lib/lit/service", () => ({
@@ -74,7 +74,7 @@ describe("Wallet Router", () => {
       const owner = await createUser();
       const sharedUser = await createUser();
       
-      const ownedWallet = await createWallet(owner.id, { name: "Owned Wallet" });
+      await createWallet(owner.id, { name: "Owned Wallet" });
       const sharedWallet = await createWallet(sharedUser.id, { name: "Shared Wallet" });
       await createWalletAccess(sharedWallet.id, owner.id, "VIEW_ONLY");
 

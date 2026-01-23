@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InvitationCard } from "@/components/sharing/InvitationCard";
-import { Inbox, Send, Share2 } from "lucide-react";
+import { Inbox, Send } from "lucide-react";
 
 export default function SharingPage() {
   const { data: receivedInvitations, isLoading: receivedLoading } = 
@@ -75,7 +75,7 @@ export default function SharingPage() {
                   {receivedInvitations.map((invitation) => (
                     <InvitationCard
                       key={invitation.id}
-                      invitation={invitation as any}
+                      invitation={invitation}
                       type="received"
                     />
                   ))}
@@ -90,7 +90,7 @@ export default function SharingPage() {
             <CardHeader>
               <CardTitle>Sent Invitations</CardTitle>
               <CardDescription>
-                Invitations you've sent to share your wallets
+                Invitations you have sent to share your wallets
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -104,7 +104,7 @@ export default function SharingPage() {
                   <Send className="h-12 w-12 text-muted-foreground/50 mb-4" />
                   <h3 className="font-semibold">No sent invitations</h3>
                   <p className="text-sm text-muted-foreground">
-                    You haven't invited anyone to access your wallets yet
+                    You have not invited anyone to access your wallets yet
                   </p>
                 </div>
               ) : (
@@ -112,7 +112,7 @@ export default function SharingPage() {
                   {sentInvitations.map((invitation) => (
                     <InvitationCard
                       key={invitation.id}
-                      invitation={invitation as any}
+                      invitation={invitation}
                       type="sent"
                     />
                   ))}

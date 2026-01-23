@@ -125,7 +125,7 @@ export function useXmtp({ walletId }: UseXmtpOptions): UseXmtpReturn {
     }
   }, [walletId, startConversationMutation]);
 
-  const canMessageFn = useCallback(async (peerAddress: string): Promise<boolean> => {
+  const canMessageFn = useCallback(async (_peerAddress: string): Promise<boolean> => {
     if (!walletId) return false;
 
     try {

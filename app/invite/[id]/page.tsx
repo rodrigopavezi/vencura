@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useState } from "react";
 import { DynamicContextProvider, useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { EthereumWalletConnectors } from "@dynamic-labs/ethereum";
 import { trpc } from "@/lib/trpc/client";
@@ -87,7 +87,7 @@ function InviteContent({ invitationId }: { invitationId: string }) {
           </div>
           <CardTitle>Wallet Invitation</CardTitle>
           <CardDescription>
-            You've been invited to access a wallet. Sign in to view and accept the invitation.
+            You have been invited to access a wallet. Sign in to view and accept the invitation.
           </CardDescription>
         </CardHeader>
         <CardFooter>
@@ -124,7 +124,7 @@ function InviteContent({ invitationId }: { invitationId: string }) {
           </div>
           <CardTitle>Invitation Not Found</CardTitle>
           <CardDescription>
-            This invitation may have expired, been revoked, or doesn't exist.
+            This invitation may have expired, been revoked, or does not exist.
           </CardDescription>
         </CardHeader>
         <CardFooter>

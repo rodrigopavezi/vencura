@@ -11,7 +11,7 @@ vi.mock("@/lib/lit/service", () => ({
     ethAddress: "0x" + Math.random().toString(16).slice(2).padEnd(40, "0"),
     authMethodId: "0x" + "a".repeat(64),
   })),
-  computeAuthMethodId: vi.fn((email) => "0x" + "a".repeat(64)),
+  computeAuthMethodId: vi.fn((_email: string) => "0x" + "a".repeat(64)),
   getSessionSigs: vi.fn().mockResolvedValue({ nodeUrl: { sig: "test" } }),
   signMessage: vi.fn().mockResolvedValue({
     signature: "0x" + "a".repeat(130),
@@ -102,17 +102,17 @@ describe("Wallet Flow Integration Tests", () => {
       const caller = createTestCaller(user);
 
       // Create multiple wallets
-      const wallet1 = await caller.wallet.create({
+      await caller.wallet.create({
         name: "Personal Wallet",
         
       });
 
-      const wallet2 = await caller.wallet.create({
+      await caller.wallet.create({
         name: "Business Wallet",
         
       });
 
-      const wallet3 = await caller.wallet.create({
+      await caller.wallet.create({
         name: "Savings Wallet",
         
       });

@@ -164,8 +164,9 @@ async function createFreshClient(
   // Sync with XMTP network
   try {
     await client.conversations.sync();
-  } catch (syncError: any) {
-    console.warn(`Sync warning for ${walletAddress.slice(0, 10)}:`, syncError.message);
+  } catch (syncError: unknown) {
+    const err = syncError as { message?: string };
+    console.warn(`Sync warning for ${walletAddress.slice(0, 10)}:`, err.message);
     // Sync errors are non-fatal for fresh clients
   }
   
@@ -207,22 +208,24 @@ export async function getXmtpClient(
     // Sync with XMTP network to ensure inbox is registered
     try {
       await client.conversations.sync();
-    } catch (syncError: any) {
+    } catch (syncError: unknown) {
+      const err = syncError as { message?: string };
       // If sync fails with inbox error, recreate fresh
-      if (syncError.message?.includes("inbox id") && syncError.message?.includes("not found")) {
+      if (err.message?.includes("inbox id") && err.message?.includes("not found")) {
         console.log(`🔄 Sync failed - inbox not found, recreating client...`);
         return createFreshClient(walletAddress, signer, encryptionKey, dbFilePath);
       }
       // Other sync errors are warnings, not fatal
-      console.warn(`Sync warning for ${walletAddress.slice(0, 10)}:`, syncError.message);
+      console.warn(`Sync warning for ${walletAddress.slice(0, 10)}:`, err.message);
     }
     
     clientCache.set(walletAddress, client);
     clientLastUsed.set(walletAddress, Date.now());
     return client;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { message?: string };
     // If inbox not found during client creation, create fresh
-    if (error.message?.includes("inbox id") && error.message?.includes("not found")) {
+    if (err.message?.includes("inbox id") && err.message?.includes("not found")) {
       console.log(`🔄 Inbox not found for ${walletAddress.slice(0, 10)}, creating fresh...`);
       return createFreshClient(walletAddress, signer, encryptionKey, dbFilePath);
     }
@@ -418,9 +421,10 @@ export async function startConversation(
   
   try {
     client = await getXmtpClient(walletAddress, signMessageFn);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { message?: string };
     // If getXmtpClient fails with inbox error, try refreshing
-    if (error.message?.includes("inbox id") && error.message?.includes("not found")) {
+    if (err.message?.includes("inbox id") && err.message?.includes("not found")) {
       console.log(`🔄 Refreshing XMTP client for ${walletAddress.slice(0, 10)}...`);
       client = await refreshXmtpClient(walletAddress, signMessageFn);
     } else {
@@ -442,9 +446,10 @@ export async function startConversation(
     if (!peerCanReceive) {
       throw new Error(`The address ${peerAddress} is not registered on XMTP and cannot receive messages. The recipient must first use XMTP to register their address.`);
     }
-  } catch (canMsgError: any) {
+  } catch (canMsgError: unknown) {
+    const err = canMsgError as { message?: string };
     // If canMessage fails with inbox error for our wallet, try to refresh and retry
-    if (canMsgError.message?.includes("inbox id") && canMsgError.message?.includes("not found")) {
+    if (err.message?.includes("inbox id") && err.message?.includes("not found")) {
       console.log(`🔄 CanMessage failed - refreshing client...`);
       client = await refreshXmtpClient(walletAddress, signMessageFn);
       
