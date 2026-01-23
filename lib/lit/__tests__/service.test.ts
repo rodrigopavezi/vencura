@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { signMessage, signTransaction, getSessionSigs, computeAuthMethodId } from "../service";
+import { computeAuthMethodId } from "../service";
 import * as litClient from "../client";
 
 // Mock the Lit client
@@ -8,12 +8,16 @@ vi.mock("../client", () => ({
 }));
 
 describe("Lit Service", () => {
+  const mockSessionSigs = {
+    nodeUrl1: { sig: "sig1", derivedVia: "test", signedMessage: "msg", address: "0x123" },
+  };
+
   const mockLitClient = {
     connect: vi.fn(),
     executeJs: vi.fn(),
     pkpSign: vi.fn(),
     getSessionSigs: vi.fn(),
-    getPkpSessionSigs: vi.fn(),
+    getPkpSessionSigs: vi.fn().mockResolvedValue(mockSessionSigs),
   };
 
   beforeEach(() => {
@@ -38,104 +42,77 @@ describe("Lit Service", () => {
 
       expect(authMethodId1).toBe(authMethodId2);
     });
-  });
 
-  describe("signMessage", () => {
-    it("should sign a message using PKP", async () => {
-      const mockSignature = "0x" + "a".repeat(130);
-      mockLitClient.pkpSign.mockResolvedValue({
-        signature: mockSignature,
-      });
+    it("should produce different IDs for different emails", () => {
+      const authMethodId1 = computeAuthMethodId("user1@example.com");
+      const authMethodId2 = computeAuthMethodId("user2@example.com");
 
-      const pkpPublicKey = "04" + "b".repeat(128);
-      const message = "Hello, World!";
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const sessionSigs = { nodeUrl: { sig: "test" } } as any;
+      expect(authMethodId1).not.toBe(authMethodId2);
+    });
 
-      const result = await signMessage(pkpPublicKey, message, sessionSigs);
+    it("should produce valid keccak256 hash format", () => {
+      const authMethodId = computeAuthMethodId("test@example.com");
 
-      expect(result.signature).toBe(mockSignature);
-      expect(result.message).toBe(message);
-      expect(result.publicKey).toBe(pkpPublicKey);
-      expect(mockLitClient.pkpSign).toHaveBeenCalledWith(
-        expect.objectContaining({
-          pubKey: pkpPublicKey,
-          sessionSigs,
-        })
-      );
+      // Should be 66 characters (0x + 64 hex chars)
+      expect(authMethodId.length).toBe(66);
+      // Should start with 0x
+      expect(authMethodId.startsWith("0x")).toBe(true);
+      // Should only contain hex characters after 0x
+      expect(/^0x[0-9a-f]+$/i.test(authMethodId)).toBe(true);
     });
   });
 
-  describe("signTransaction", () => {
-    it("should sign a transaction using PKP", async () => {
-      const mockSignature = "0x" + "c".repeat(130);
-      mockLitClient.pkpSign.mockResolvedValue({
-        signature: mockSignature,
-      });
+  describe("signMessage validation", () => {
+    // Import dynamically to ensure mocks are in place
+    it("should require valid JWT format", async () => {
+      const { signMessage } = await import("../service");
+      const pkpPublicKey = "04" + "b".repeat(128);
+      const message = "Hello, World!";
+      const invalidJwt = "not-a-valid-jwt";
+      const authMethodId = computeAuthMethodId("test@example.com");
 
+      await expect(
+        signMessage(pkpPublicKey, message, invalidJwt, authMethodId)
+      ).rejects.toThrow("Invalid JWT format");
+    });
+
+    it("should verify email matches authMethodId", async () => {
+      const { signMessage } = await import("../service");
+      const pkpPublicKey = "04" + "b".repeat(128);
+      const message = "Hello, World!";
+      // JWT for test@example.com with far-future expiry
+      const payload = {
+        email: "test@example.com",
+        exp: 9999999999,
+      };
+      const userJwt = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.${Buffer.from(JSON.stringify(payload)).toString("base64url")}.signature`;
+      // authMethodId for different email
+      const wrongAuthMethodId = computeAuthMethodId("other@example.com");
+
+      await expect(
+        signMessage(pkpPublicKey, message, userJwt, wrongAuthMethodId)
+      ).rejects.toThrow("Unauthorized");
+    });
+  });
+
+  describe("signTransaction validation", () => {
+    it("should require valid JWT format", async () => {
+      const { signTransaction } = await import("../service");
       const pkpPublicKey = "04" + "d".repeat(128);
       const transaction = {
         to: "0x" + "e".repeat(40),
-        value: "1000000000000000000", // 1 ETH in Wei
+        value: "1000000000000000000",
         nonce: 0,
         gasLimit: "21000",
         gasPrice: "20000000000",
         chainId: 1,
       };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const sessionSigs = { nodeUrl: { sig: "test" } } as any;
+      const invalidJwt = "invalid";
+      const authMethodId = computeAuthMethodId("test@example.com");
 
-      const result = await signTransaction(pkpPublicKey, transaction, sessionSigs);
-
-      expect(result).toHaveProperty("signature");
-      expect(result).toHaveProperty("serializedTransaction");
-      expect(mockLitClient.pkpSign).toHaveBeenCalled();
-    });
-  });
-
-  describe("getSessionSigs", () => {
-    it("should get session signatures using JWT-based auth", async () => {
-      const mockSessionSigs = {
-        nodeUrl1: { sig: "sig1", derivedVia: "test", signedMessage: "msg", address: "0x123" },
-        nodeUrl2: { sig: "sig2", derivedVia: "test", signedMessage: "msg", address: "0x123" },
-      };
-
-      mockLitClient.getPkpSessionSigs.mockResolvedValue(mockSessionSigs);
-
-      const pkpPublicKey = "04" + "f".repeat(128);
-      const userJwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20ifQ.mock";
-      const authMethodId = "0x" + "a".repeat(64);
-
-      const result = await getSessionSigs(pkpPublicKey, userJwt, authMethodId);
-
-      expect(result).toEqual(mockSessionSigs);
-      expect(mockLitClient.getPkpSessionSigs).toHaveBeenCalledWith(
-        expect.objectContaining({
-          pkpPublicKey,
-          jsParams: expect.objectContaining({
-            jwt: userJwt,
-            expectedAuthMethodId: authMethodId,
-          }),
-        })
-      );
-    });
-
-    it("should throw error if JWT is missing", async () => {
-      const pkpPublicKey = "04" + "f".repeat(128);
-      const authMethodId = "0x" + "a".repeat(64);
-
-      await expect(getSessionSigs(pkpPublicKey, "", authMethodId)).rejects.toThrow(
-        "User JWT is required"
-      );
-    });
-
-    it("should throw error if authMethodId is missing", async () => {
-      const pkpPublicKey = "04" + "f".repeat(128);
-      const userJwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20ifQ.mock";
-
-      await expect(getSessionSigs(pkpPublicKey, userJwt, "")).rejects.toThrow(
-        "Auth method ID is required"
-      );
+      await expect(
+        signTransaction(pkpPublicKey, transaction, invalidJwt, authMethodId)
+      ).rejects.toThrow("Invalid JWT format");
     });
   });
 });

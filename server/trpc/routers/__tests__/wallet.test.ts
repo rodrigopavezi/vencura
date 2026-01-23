@@ -10,7 +10,7 @@ vi.mock("@/lib/lit/service", () => ({
     publicKey: "04" + "a".repeat(128),
     ethAddress: "0x" + "b".repeat(40),
   }),
-  getSessionSigs: vi.fn().mockResolvedValue({ nodeUrl: { sig: "test" } }),
+  computeAuthMethodId: vi.fn().mockReturnValue("0x" + "a".repeat(64)),
   signMessage: vi.fn().mockResolvedValue({
     signature: "0x" + "c".repeat(130),
     publicKey: "04" + "a".repeat(128),

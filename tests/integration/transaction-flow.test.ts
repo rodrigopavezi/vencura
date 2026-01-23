@@ -95,7 +95,6 @@ describe("Transaction Flow Integration Tests", () => {
       expect(txResult.status).toBe("success");
 
       // Verify services were called correctly
-      expect(litService.getSessionSigs).toHaveBeenCalled();
       expect(litService.signTransaction).toHaveBeenCalledWith(
         wallet.pkpPublicKey,
         expect.objectContaining({
@@ -103,7 +102,8 @@ describe("Transaction Flow Integration Tests", () => {
           // Value is converted to Wei (0.5 ETH = 500000000000000000 Wei)
           value: "500000000000000000",
         }),
-        expect.any(Object)
+        expect.any(String), // userJwt
+        expect.any(String)  // authMethodId
       );
       expect(blockchainService.broadcastTransaction).toHaveBeenCalled();
     });
@@ -296,7 +296,8 @@ describe("Transaction Flow Integration Tests", () => {
       expect(litService.signMessage).toHaveBeenCalledWith(
         wallet.pkpPublicKey,
         "I agree to the terms and conditions",
-        expect.any(Object)
+        expect.any(String), // userJwt
+        expect.any(String)  // authMethodId
       );
     });
   });

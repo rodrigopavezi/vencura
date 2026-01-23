@@ -156,22 +156,29 @@ describe("XMTP Service", () => {
 
   describe("startConversation", () => {
     it("should start a conversation without initial message", async () => {
+      const peerAddr = "0x" + "h".repeat(40);
+      mockClient.conversations.syncAll.mockResolvedValue(undefined);
+      mockClient.canMessage.mockResolvedValue(new Map([[peerAddr, true]]));
       mockClient.conversations.createDmWithIdentifier.mockResolvedValue({
         id: "conv-3",
-        peerInboxId: "0x" + "h".repeat(40),
+        peerInboxId: peerAddr,
         createdAt: Date.now(),
       });
 
-      const result = await startConversation(walletAddress, mockSignFn, "0x" + "h".repeat(40));
+      const result = await startConversation(walletAddress, mockSignFn, peerAddr);
 
-      expect(result.conversation.peerAddress).toBe("0x" + "h".repeat(40));
+      expect(result.conversation.peerAddress).toBe(peerAddr);
       expect(result.message).toBeUndefined();
     });
 
     it("should start a conversation with initial message", async () => {
+      const peerAddr = "0x" + "i".repeat(40);
+      mockClient.conversations.syncAll.mockResolvedValue(undefined);
+      mockClient.canMessage.mockResolvedValue(new Map([[peerAddr, true]]));
+      
       const conv = {
         id: "conv-4",
-        peerInboxId: "0x" + "i".repeat(40),
+        peerInboxId: peerAddr,
         createdAt: Date.now(),
         sendText: vi.fn().mockResolvedValue("msg-3"),
       };
@@ -181,11 +188,11 @@ describe("XMTP Service", () => {
       const result = await startConversation(
         walletAddress,
         mockSignFn,
-        "0x" + "i".repeat(40),
+        peerAddr,
         "First message"
       );
 
-      expect(result.conversation.peerAddress).toBe("0x" + "i".repeat(40));
+      expect(result.conversation.peerAddress).toBe(peerAddr);
       expect(result.message?.content).toBe("First message");
     });
   });
