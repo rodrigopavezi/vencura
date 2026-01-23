@@ -14,6 +14,9 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { useRouter } from "next/navigation";
 
+// Get environment ID - use a fallback during build/SSR to prevent prerender errors
+const dynamicEnvironmentId = process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID || "build-placeholder";
+
 interface InvitePageProps {
   params: Promise<{ id: string }>;
 }
@@ -236,7 +239,7 @@ export default function InvitePage({ params }: InvitePageProps) {
   return (
     <DynamicContextProvider
       settings={{
-        environmentId: process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID as string,
+        environmentId: dynamicEnvironmentId,
         walletConnectors: [EthereumWalletConnectors],
       }}
     >

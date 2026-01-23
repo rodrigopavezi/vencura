@@ -10,6 +10,9 @@ import { Toaster } from "@/components/ui/sonner";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
+// Get environment ID - use a fallback during build/SSR to prevent prerender errors
+const dynamicEnvironmentId = process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID || "build-placeholder";
+
 function DashboardContent({ children }: { children: ReactNode }) {
   const { user, sdkHasLoaded } = useDynamicContext();
   const router = useRouter();
@@ -51,7 +54,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <DynamicContextProvider
       settings={{
-        environmentId: process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID as string,
+        environmentId: dynamicEnvironmentId,
         walletConnectors: [EthereumWalletConnectors],
       }}
     >

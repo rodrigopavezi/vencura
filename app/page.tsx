@@ -5,11 +5,14 @@ import { EthereumWalletConnectors } from "@dynamic-labs/ethereum";
 import { TRPCProvider } from "@/lib/trpc/provider";
 import ConnectWithEmailView from "../components/ConnectWithEmailView";
 
+// Get environment ID - use a fallback during build/SSR to prevent prerender errors
+const dynamicEnvironmentId = process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID || "build-placeholder";
+
 export default function App() {
   return (
     <DynamicContextProvider
       settings={{
-        environmentId: process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID as string,
+        environmentId: dynamicEnvironmentId,
         walletConnectors: [EthereumWalletConnectors],
       }}
     >
