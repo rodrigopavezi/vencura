@@ -98,6 +98,12 @@ function DashboardContent({ children }: { children: ReactNode }) {
 
   // Wait for token check to complete before rendering dashboard
   if (!tokenCheckComplete) {
+    console.log("[DashboardLayout] Waiting for token...", {
+      sdkHasLoaded,
+      isAuthenticated,
+      authState,
+      tokenCheckComplete,
+    });
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="animate-pulse text-muted-foreground">
@@ -107,6 +113,8 @@ function DashboardContent({ children }: { children: ReactNode }) {
     );
   }
 
+  console.log("[DashboardLayout] Token ready, rendering TRPCProvider with token:", currentToken ? `present (${currentToken.substring(0, 20)}...)` : "null");
+  
   return (
     <TRPCProvider authToken={tokenCheckComplete ? currentToken : null}>
       <div className="flex h-screen bg-background">

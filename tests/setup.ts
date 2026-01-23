@@ -7,6 +7,14 @@ process.env.ETHEREUM_RPC_URL = "https://eth-mainnet.test.com";
 process.env.ETHERSCAN_API_KEY = "test_etherscan_key";
 process.env.APP_URL = "http://localhost:3000";
 
+// Set DATABASE_URL for tests if not already set
+// For CI, this is set via environment; for local, use local PostgreSQL or provide your own
+if (!process.env.DATABASE_URL) {
+  // Default to local PostgreSQL for testing
+  // You can override this by setting DATABASE_URL in your environment
+  process.env.DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/vencura_test";
+}
+
 beforeAll(() => {
   // Global setup before all tests
 });

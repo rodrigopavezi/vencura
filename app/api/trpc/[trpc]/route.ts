@@ -71,10 +71,24 @@ const handler = async (req: Request) => {
   
   if (!jwt) {
     console.log(`[tRPC] No JWT token in request for: ${procedurePath}`);
-    console.log(`[tRPC] Authorization header: ${req.headers.get("authorization") ? "present but invalid" : "missing"}`);
+    const authHeader = req.headers.get("authorization");
+    console.log(`[tRPC] Authorization header: ${authHeader ? `"${authHeader.substring(0, 50)}..."` : "missing entirely"}`);
+    console.log(`[tRPC] All headers:`, Object.fromEntries(req.headers.entries()));
   } else if (!user) {
     console.log(`[tRPC] JWT present but user extraction failed for: ${procedurePath}`);
-    console.log(`[tRPC] JWT prefix: ${jwt.substring(0, 30)}...`);
+    console.log(`[tRPC] JWT prefix: ${jwt.substring(0, 50)}...`);
+    // Log decoded payload to debug structure issues
+    try {
+      const parts = jwt.split(".");
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], "base64").toString());
+        console.log(`[tRPC] JWT payload keys: ${Object.keys(payload).join(", ")}`);
+        console.log(`[tRPC] JWT email: ${payload.email}`);
+        console.log(`[tRPC] JWT verified_credentials: ${JSON.stringify(payload.verified_credentials?.slice(0, 1))}`);
+      }
+    } catch (e) {
+      console.log(`[tRPC] Failed to decode JWT payload: ${e}`);
+    }
   } else {
     console.log(`[tRPC] Authenticated request for ${procedurePath} by user: ${user.email}`);
   }

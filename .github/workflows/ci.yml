@@ -10,6 +10,24 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: vencura_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vencura_test
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -33,24 +51,17 @@ jobs:
 
       - name: Setup test database
         run: pnpm db:push
-        env:
-          DATABASE_URL: file:./test.db
 
       - name: Run linter
         run: pnpm lint
 
       - name: Run unit tests
         run: pnpm test:unit
-        env:
-          DATABASE_URL: file:./test.db
 
       - name: Run integration tests
         run: pnpm test:integration
-        env:
-          DATABASE_URL: file:./test.db
 
       - name: Build
         run: pnpm build
         env:
-          DATABASE_URL: file:./test.db
           NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID: placeholder-for-ci-build

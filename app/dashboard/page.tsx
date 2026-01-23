@@ -71,6 +71,9 @@ function WalletCardPreview({
 
 export default function DashboardPage() {
   const { isTokenReady } = useAuthToken();
+  
+  console.log("[DashboardPage] isTokenReady:", isTokenReady);
+  
   const { data: wallets, isLoading: walletsLoading } = trpc.wallet.getAll.useQuery(undefined, {
     enabled: isTokenReady,
   });

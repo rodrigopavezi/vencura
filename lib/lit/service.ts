@@ -102,10 +102,23 @@ export async function mintPKP(userEmail: string): Promise<PKPInfo> {
   try {
     // First mint the PKP
     const mintCost = await litContracts.pkpNftContract.read.mintCost();
+    console.log(`💰 Mint cost: ${mintCost.toString()} wei`);
+    
+    // Check server wallet balance
+    const provider = litContracts.signer?.provider;
+    if (provider) {
+      const balance = await provider.getBalance(serverWalletAddress);
+      console.log(`💰 Server wallet balance: ${balance.toString()} wei`);
+      
+      if (balance.lt(mintCost)) {
+        throw new Error(`Insufficient funds: wallet has ${ethers.utils.formatEther(balance)} ETH, needs at least ${ethers.utils.formatEther(mintCost)} ETH for minting. Fund your server wallet (${serverWalletAddress}) on Chronicle Yellowstone testnet.`);
+      }
+    }
     
     // Use mintGrantAndBurnNext - this creates a PKP that the contract controls
     // Then we'll add the server wallet as a permitted address
     const mintTx = await litContracts.pkpNftContract.write.mintNext(2, { value: mintCost });
+    console.log(`📤 Mint transaction sent: ${mintTx.hash}`);
     const mintReceipt = await mintTx.wait();
     
     // Extract tokenId from Transfer event

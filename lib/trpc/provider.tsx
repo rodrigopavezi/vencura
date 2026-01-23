@@ -67,13 +67,21 @@ export function TRPCProvider({ children, authToken }: TRPCProviderProps) {
           async headers() {
             // First try the module-level token (set by React component)
             // Then fall back to getAuthToken() from Dynamic SDK
-            const token = currentAuthToken || getAuthToken();
-            console.log("[TRPCProvider] headers() - token:", token ? "present" : "null");
+            const moduleToken = currentAuthToken;
+            const sdkToken = getAuthToken();
+            const token = moduleToken || sdkToken;
+            
+            console.log("[TRPCProvider] headers() called:");
+            console.log("  - moduleToken (currentAuthToken):", moduleToken ? `present (${moduleToken.substring(0, 20)}...)` : "null");
+            console.log("  - sdkToken (getAuthToken()):", sdkToken ? `present (${sdkToken.substring(0, 20)}...)` : "null");
+            console.log("  - using token:", token ? "yes" : "NO - request will be unauthorized!");
+            
             if (token) {
               return {
                 authorization: `Bearer ${token}`,
               };
             }
+            console.warn("[TRPCProvider] WARNING: Making request without auth token!");
             return {};
           },
         }),
