@@ -39,3 +39,18 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/lib/generated/prisma
+
+# SQLite database
+*.db
+*.db-journal
+
+# XMTP database files (created by XMTP Node SDK)
+xmtp-*.db3*
+*.db3
+*.db3-wal
+*.db3-shm
+*.sqlcipher_salt
+
+.cursor

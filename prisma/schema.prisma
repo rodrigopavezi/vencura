@@ -1,0 +1,92 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  wallets              Wallet[]
+  walletAccess         WalletAccess[]
+  invitationsSent      WalletInvitation[]      @relation("InvitationSender")
+  invitationsReceived  WalletInvitation[]      @relation("InvitationReceiver")
+  proposalsCreated     TransactionProposal[]   @relation("ProposalCreator")
+  proposalsReviewed    TransactionProposal[]   @relation("ProposalReviewer")
+}
+
+model Wallet {
+  id           String   @id @default(cuid())
+  name         String
+  address      String   @unique
+  pkpTokenId   String   @unique
+  pkpPublicKey String
+  authMethodId String?  // Hash of user's identity for Lit Protocol JWT auth
+  ownerId      String
+  owner        User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  accessList  WalletAccess[]
+  invitations WalletInvitation[]
+  proposals   TransactionProposal[]
+}
+
+model WalletAccess {
+  id        String   @id @default(cuid())
+  walletId  String
+  wallet    Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String   // VIEW_ONLY | CO_SIGNER | FULL_ACCESS
+  createdAt DateTime @default(now())
+
+  @@unique([walletId, userId])
+}
+
+model WalletInvitation {
+  id           String   @id @default(cuid())
+  walletId     String
+  wallet       Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  inviterId    String
+  inviter      User     @relation("InvitationSender", fields: [inviterId], references: [id])
+  inviteeEmail String
+  inviteeId    String?
+  invitee      User?    @relation("InvitationReceiver", fields: [inviteeId], references: [id])
+  role         String   // VIEW_ONLY | CO_SIGNER | FULL_ACCESS
+  status       String   @default("PENDING") // PENDING | ACCEPTED | REJECTED | EXPIRED
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@unique([walletId, inviteeEmail])
+}
+
+model TransactionProposal {
+  id          String   @id @default(cuid())
+  walletId    String
+  wallet      Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  proposerId  String
+  proposer    User     @relation("ProposalCreator", fields: [proposerId], references: [id])
+  to          String   // Recipient address
+  value       String   // Amount in ETH
+  data        String?  // Optional calldata
+  reason      String?  // Optional reason/description for the transaction
+  status      String   @default("PENDING") // PENDING | APPROVED | REJECTED | EXECUTED | EXPIRED
+  reviewerId  String?
+  reviewer    User?    @relation("ProposalReviewer", fields: [reviewerId], references: [id])
+  reviewedAt  DateTime?
+  txHash      String?  // Transaction hash if executed
+  expiresAt   DateTime // Proposal expires after some time
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
