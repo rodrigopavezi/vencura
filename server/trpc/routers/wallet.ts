@@ -362,7 +362,7 @@ export const walletRouter = router({
           nonce,
           gasLimit,
           gasPrice,
-          chainId: parseInt(process.env.CHAIN_ID || "11155111", 10), // defaults to sepolia
+          chainId: 11155111, // Sepolia testnet
         },
         ctx.jwt,
         userAuthMethodId

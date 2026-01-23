@@ -408,13 +408,17 @@ export async function signTransaction(
   // Signature format: 0x{r}{s}{v} where r and s are 64 hex chars each, v is 2 hex chars
   const r = `0x${signature.slice(2, 66)}` as Hex;
   const s = `0x${signature.slice(66, 130)}` as Hex;
-  const v = parseInt(signature.slice(130, 132), 16);
+  const rawV = parseInt(signature.slice(130, 132), 16);
+  
+  // Convert raw v (27 or 28) to yParity (0 or 1)
+  // viem will then compute the correct EIP-155 v value: chainId * 2 + 35 + yParity
+  const yParity = rawV - 27;
 
-  // Serialize with signature
+  // Serialize with signature using yParity for proper EIP-155 chain ID encoding
   const signedTx = serializeTransaction(tx, {
     r,
     s,
-    v: BigInt(v),
+    yParity,
   });
 
   return {

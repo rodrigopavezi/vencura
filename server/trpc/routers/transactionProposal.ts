@@ -284,7 +284,7 @@ export const transactionProposalRouter = router({
             nonce,
             gasLimit,
             gasPrice,
-            chainId: process.env.NODE_ENV === "production" ? 1 : 11155111,
+            chainId: 11155111, // Sepolia testnet
           },
           ctx.jwt,
           proposal.wallet.authMethodId
