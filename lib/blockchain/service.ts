@@ -1,7 +1,9 @@
 import { createPublicClient, http, formatEther, parseEther, type Address } from "viem";
 import { mainnet, sepolia } from "viem/chains";
 
-const chain = process.env.NODE_ENV === "production" ? mainnet : sepolia;
+// Use CHAIN_ID env var to explicitly set the network (defaults to sepolia for safety)
+const chainId = parseInt(process.env.CHAIN_ID || "11155111", 10);
+const chain = chainId === 1 ? mainnet : sepolia;
 
 let publicClient: ReturnType<typeof createPublicClient> | null = null;
 
