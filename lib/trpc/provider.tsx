@@ -2,7 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink } from "@trpc/client";
-import { useState, createContext, useContext, useMemo, useRef, useEffect } from "react";
+import { useState, createContext, useContext, useMemo, useEffect } from "react";
 import superjson from "superjson";
 import { trpc } from "./client";
 import { getAuthToken } from "@dynamic-labs/sdk-react-core";
@@ -47,9 +47,13 @@ export function TRPCProvider({ children, authToken }: TRPCProviderProps) {
     },
   }));
 
-  // Keep the module-level token in sync with the prop
+  // IMPORTANT: Update token synchronously during render, BEFORE children render
+  // This ensures the token is available when queries start making requests
+  // The useEffect below is kept for logging purposes only
+  currentAuthToken = authToken ?? null;
+
+  // Log token updates (for debugging)
   useEffect(() => {
-    currentAuthToken = authToken ?? null;
     console.log("[TRPCProvider] Token updated:", currentAuthToken ? "present" : "null");
   }, [authToken]);
   
