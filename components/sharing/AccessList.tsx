@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Trash2, Crown } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
+import { useAuthToken } from "@/lib/trpc/provider";
 import { toast } from "sonner";
 
 interface AccessListProps {
@@ -28,8 +29,11 @@ const roleColors: Record<string, string> = {
 };
 
 export function AccessList({ walletId, isOwner }: AccessListProps) {
+  const { isTokenReady } = useAuthToken();
   const { data: accessData, isLoading } = trpc.walletAccess.listAccess.useQuery({
     walletId,
+  }, {
+    enabled: isTokenReady,
   });
 
   const utils = trpc.useUtils();

@@ -2,6 +2,7 @@
 
 import { use } from "react";
 import { trpc } from "@/lib/trpc/client";
+import { useAuthToken } from "@/lib/trpc/provider";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,11 +34,20 @@ export default function WalletDetailPage({ params }: WalletDetailPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const defaultTab = searchParams.get("tab") || "overview";
+  const { isTokenReady } = useAuthToken();
 
-  const { data: wallet, isLoading: walletLoading } = trpc.wallet.getById.useQuery({ id });
-  const { data: balance, isLoading: balanceLoading, refetch: refetchBalance } = trpc.wallet.getBalance.useQuery({ id });
-  const { data: transactions, isLoading: txLoading } = trpc.wallet.getTransactions.useQuery({ walletId: id });
-  const { data: pendingCount } = trpc.transactionProposal.getPendingCount.useQuery({ walletId: id });
+  const { data: wallet, isLoading: walletLoading } = trpc.wallet.getById.useQuery({ id }, {
+    enabled: isTokenReady,
+  });
+  const { data: balance, isLoading: balanceLoading, refetch: refetchBalance } = trpc.wallet.getBalance.useQuery({ id }, {
+    enabled: isTokenReady,
+  });
+  const { data: transactions, isLoading: txLoading } = trpc.wallet.getTransactions.useQuery({ walletId: id }, {
+    enabled: isTokenReady,
+  });
+  const { data: pendingCount } = trpc.transactionProposal.getPendingCount.useQuery({ walletId: id }, {
+    enabled: isTokenReady,
+  });
 
   const copyAddress = () => {
     if (wallet?.address) {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc/client";
+import { useAuthToken } from "@/lib/trpc/provider";
 import { useXmtp } from "@/hooks/useXmtp";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,7 +17,10 @@ export default function MessagesPage() {
   const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
 
-  const { data: wallets, isLoading: walletsLoading } = trpc.wallet.getAll.useQuery();
+  const { isTokenReady } = useAuthToken();
+  const { data: wallets, isLoading: walletsLoading } = trpc.wallet.getAll.useQuery(undefined, {
+    enabled: isTokenReady,
+  });
 
   const {
     isInitializing,

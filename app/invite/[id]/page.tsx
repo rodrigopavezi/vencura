@@ -1,10 +1,10 @@
 "use client";
 
-import { use, useState } from "react";
-import { DynamicContextProvider, useDynamicContext } from "@dynamic-labs/sdk-react-core";
+import { use, useState, useEffect } from "react";
+import { DynamicContextProvider, useDynamicContext, getAuthToken } from "@dynamic-labs/sdk-react-core";
 import { EthereumWalletConnectors } from "@dynamic-labs/ethereum";
 import { trpc } from "@/lib/trpc/client";
-import { TRPCProvider } from "@/lib/trpc/provider";
+import { TRPCProvider, useAuthToken } from "@/lib/trpc/provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -33,15 +33,16 @@ const roleColors: Record<string, string> = {
   FULL_ACCESS: "bg-green-500 text-white",
 };
 
-function InviteContent({ invitationId }: { invitationId: string }) {
+function InviteContentInner({ invitationId }: { invitationId: string }) {
   const { user, sdkHasLoaded, setShowAuthFlow } = useDynamicContext();
+  const { isTokenReady } = useAuthToken();
   const isAuthenticated = !!user;
   const router = useRouter();
   const [accepted, setAccepted] = useState(false);
 
   const { data: invitation, isLoading, error } = trpc.walletAccess.getInvitation.useQuery(
     { id: invitationId },
-    { enabled: isAuthenticated }
+    { enabled: isAuthenticated && isTokenReady }
   );
 
   const acceptInvitation = trpc.walletAccess.acceptInvitation.useMutation({
@@ -233,6 +234,53 @@ function InviteContent({ invitationId }: { invitationId: string }) {
   );
 }
 
+function InviteContent({ invitationId }: { invitationId: string }) {
+  const { user, sdkHasLoaded } = useDynamicContext();
+  const isAuthenticated = !!user;
+  const [authToken, setAuthToken] = useState<string | null>(null);
+
+  // Get auth token when user is authenticated
+  useEffect(() => {
+    if (sdkHasLoaded && isAuthenticated) {
+      // Try to get the token immediately
+      const token = getAuthToken();
+      if (token) {
+        setAuthToken(token);
+      } else {
+        // Poll for token if not immediately available
+        const interval = setInterval(() => {
+          const token = getAuthToken();
+          if (token) {
+            setAuthToken(token);
+            clearInterval(interval);
+          }
+        }, 100);
+
+        // Cleanup after 5 seconds
+        const timeout = setTimeout(() => {
+          clearInterval(interval);
+        }, 5000);
+
+        return () => {
+          clearInterval(interval);
+          clearTimeout(timeout);
+        };
+      }
+    } else {
+      setAuthToken(null);
+    }
+  }, [sdkHasLoaded, isAuthenticated]);
+
+  return (
+    <TRPCProvider authToken={authToken}>
+      <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+        <InviteContentInner invitationId={invitationId} />
+      </div>
+      <Toaster />
+    </TRPCProvider>
+  );
+}
+
 export default function InvitePage({ params }: InvitePageProps) {
   const { id } = use(params);
 
@@ -243,12 +291,7 @@ export default function InvitePage({ params }: InvitePageProps) {
         walletConnectors: [EthereumWalletConnectors],
       }}
     >
-      <TRPCProvider>
-        <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-          <InviteContent invitationId={id} />
-        </div>
-        <Toaster />
-      </TRPCProvider>
+      <InviteContent invitationId={id} />
     </DynamicContextProvider>
   );
 }

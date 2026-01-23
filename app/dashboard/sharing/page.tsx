@@ -1,6 +1,7 @@
 "use client";
 
 import { trpc } from "@/lib/trpc/client";
+import { useAuthToken } from "@/lib/trpc/provider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,11 +9,17 @@ import { InvitationCard } from "@/components/sharing/InvitationCard";
 import { Inbox, Send } from "lucide-react";
 
 export default function SharingPage() {
+  const { isTokenReady } = useAuthToken();
+  
   const { data: receivedInvitations, isLoading: receivedLoading } = 
-    trpc.walletAccess.listInvitations.useQuery({ type: "received" });
+    trpc.walletAccess.listInvitations.useQuery({ type: "received" }, {
+      enabled: isTokenReady,
+    });
   
   const { data: sentInvitations, isLoading: sentLoading } = 
-    trpc.walletAccess.listInvitations.useQuery({ type: "sent" });
+    trpc.walletAccess.listInvitations.useQuery({ type: "sent" }, {
+      enabled: isTokenReady,
+    });
 
   const pendingCount = receivedInvitations?.length || 0;
   const sentCount = sentInvitations?.length || 0;

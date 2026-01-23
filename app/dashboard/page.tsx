@@ -1,6 +1,7 @@
 "use client";
 
 import { trpc } from "@/lib/trpc/client";
+import { useAuthToken } from "@/lib/trpc/provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -69,8 +70,13 @@ function WalletCardPreview({
 }
 
 export default function DashboardPage() {
-  const { data: wallets, isLoading: walletsLoading } = trpc.wallet.getAll.useQuery();
-  const { data: invitations } = trpc.walletAccess.listInvitations.useQuery({ type: "received" });
+  const { isTokenReady } = useAuthToken();
+  const { data: wallets, isLoading: walletsLoading } = trpc.wallet.getAll.useQuery(undefined, {
+    enabled: isTokenReady,
+  });
+  const { data: invitations } = trpc.walletAccess.listInvitations.useQuery({ type: "received" }, {
+    enabled: isTokenReady,
+  });
 
   const totalWallets = (wallets?.owned?.length || 0) + (wallets?.shared?.length || 0);
   const pendingInvitations = invitations?.length || 0;

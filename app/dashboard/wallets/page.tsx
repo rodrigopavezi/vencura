@@ -1,6 +1,7 @@
 "use client";
 
 import { trpc } from "@/lib/trpc/client";
+import { useAuthToken } from "@/lib/trpc/provider";
 import { WalletCard } from "@/components/wallet/WalletCard";
 import { CreateWalletDialog } from "@/components/wallet/CreateWalletDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,7 +21,10 @@ import {
 import { useState } from "react";
 
 export default function WalletsPage() {
-  const { data: wallets, isLoading } = trpc.wallet.getAll.useQuery();
+  const { isTokenReady } = useAuthToken();
+  const { data: wallets, isLoading } = trpc.wallet.getAll.useQuery(undefined, {
+    enabled: isTokenReady,
+  });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [walletToDelete, setWalletToDelete] = useState<string | null>(null);
 

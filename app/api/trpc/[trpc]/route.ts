@@ -62,8 +62,15 @@ async function getUserFromRequest(req: Request) {
 }
 
 const handler = async (req: Request) => {
-  const user = await getUserFromRequest(req);
   const jwt = getJwtFromRequest(req);
+  const user = await getUserFromRequest(req);
+  
+  // Debug logging (visible in Vercel logs)
+  if (!jwt) {
+    console.log("[tRPC] No JWT token in request");
+  } else if (!user) {
+    console.log("[tRPC] JWT present but user extraction failed");
+  }
 
   return fetchRequestHandler({
     endpoint: "/api/trpc",

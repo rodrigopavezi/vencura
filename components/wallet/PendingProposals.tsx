@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
+import { useAuthToken } from "@/lib/trpc/provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -47,10 +48,13 @@ export function PendingProposals({ walletId, isOwner }: PendingProposalsProps) {
   const [actionType, setActionType] = useState<"approve" | "reject" | null>(null);
 
   const utils = trpc.useUtils();
+  const { isTokenReady } = useAuthToken();
 
   const { data: proposals, isLoading } = trpc.transactionProposal.list.useQuery({
     walletId,
     limit: 50,
+  }, {
+    enabled: isTokenReady,
   });
 
   const approveMutation = trpc.transactionProposal.approve.useMutation({
