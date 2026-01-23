@@ -7,7 +7,7 @@ import { cleanupDatabase } from "@/tests/utils/db";
 vi.mock("@/lib/lit/service", () => ({
   getSessionSigs: vi.fn().mockRejectedValue(new Error("Lit Protocol operations are mocked in tests")),
   signMessage: vi.fn().mockRejectedValue(new Error("Lit Protocol operations are mocked in tests")),
-  computeAuthMethodId: vi.fn((_email: string) => "0x" + "a".repeat(64)),
+  computeAuthMethodId: vi.fn(() => "0x" + "a".repeat(64)),
 }));
 
 // Mock the XMTP service

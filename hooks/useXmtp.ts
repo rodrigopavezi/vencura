@@ -33,7 +33,7 @@ interface UseXmtpReturn {
   sendingMessage: boolean;
   startConversation: (peerAddress: string, initialMessage?: string) => Promise<Conversation | null>;
   startingConversation: boolean;
-  canMessage: (peerAddress: string) => Promise<boolean>;
+  canMessage: () => Promise<boolean>;
 }
 
 export function useXmtp({ walletId }: UseXmtpOptions): UseXmtpReturn {
@@ -127,7 +127,7 @@ export function useXmtp({ walletId }: UseXmtpOptions): UseXmtpReturn {
     }
   }, [walletId, startConversationMutation]);
 
-  const canMessageFn = useCallback(async (_peerAddress: string): Promise<boolean> => {
+  const canMessageFn = useCallback(async (): Promise<boolean> => {
     if (!walletId) return false;
 
     try {

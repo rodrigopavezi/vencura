@@ -34,7 +34,7 @@ interface TRPCProviderProps {
 // Use a module-level ref to store the current token
 // This allows the headers function to access the latest token
 // even though it's called outside the React component tree
-let currentAuthToken: string | null = null;
+const authTokenRef = { current: null as string | null };
 
 export function TRPCProvider({ children, authToken }: TRPCProviderProps) {
   const [queryClient] = useState(() => new QueryClient({
@@ -47,14 +47,11 @@ export function TRPCProvider({ children, authToken }: TRPCProviderProps) {
     },
   }));
 
-  // IMPORTANT: Update token synchronously during render, BEFORE children render
-  // This ensures the token is available when queries start making requests
-  // The useEffect below is kept for logging purposes only
-  currentAuthToken = authToken ?? null;
-
-  // Log token updates (for debugging)
+  // Update token in an effect to avoid side effects during render
+  // Using a ref object that persists across renders
   useEffect(() => {
-    console.log("[TRPCProvider] Token updated:", currentAuthToken ? "present" : "null");
+    authTokenRef.current = authToken ?? null;
+    console.log("[TRPCProvider] Token updated:", authTokenRef.current ? "present" : "null");
   }, [authToken]);
   
   // Create tRPC client that gets fresh token on each request
@@ -67,7 +64,7 @@ export function TRPCProvider({ children, authToken }: TRPCProviderProps) {
           async headers() {
             // First try the module-level token (set by React component)
             // Then fall back to getAuthToken() from Dynamic SDK
-            const moduleToken = currentAuthToken;
+            const moduleToken = authTokenRef.current;
             const sdkToken = getAuthToken();
             const token = moduleToken || sdkToken;
             

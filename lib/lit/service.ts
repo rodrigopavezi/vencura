@@ -390,6 +390,7 @@ export async function signTransaction(
     gas: BigInt(transaction.gasLimit),
     gasPrice: BigInt(transaction.gasPrice),
     chainId: transaction.chainId,
+    type: "legacy" as const,
   };
 
   const serializedTx = serializeTransaction(tx);
@@ -410,15 +411,16 @@ export async function signTransaction(
   const s = `0x${signature.slice(66, 130)}` as Hex;
   const rawV = parseInt(signature.slice(130, 132), 16);
   
-  // Convert raw v (27 or 28) to yParity (0 or 1)
-  // viem will then compute the correct EIP-155 v value: chainId * 2 + 35 + yParity
-  const yParity = rawV - 27;
+  // Convert raw v (27 or 28) to EIP-155 v value: chainId * 2 + 35 + recoveryParam
+  // Use BigInt for the calculation to avoid mixing types
+  const recoveryParam = rawV - 27;
+  const eip155V = BigInt(transaction.chainId) * 2n + 35n + BigInt(recoveryParam);
 
-  // Serialize with signature using yParity for proper EIP-155 chain ID encoding
+  // Serialize with signature using the EIP-155 v value
   const signedTx = serializeTransaction(tx, {
     r,
     s,
-    yParity,
+    v: eip155V,
   });
 
   return {
