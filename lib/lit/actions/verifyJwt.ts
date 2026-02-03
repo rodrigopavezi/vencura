@@ -97,6 +97,7 @@ export const JWT_VERIFY_AND_SIGN_LIT_ACTION_CODE = `
     // Dynamic Labs JWKS endpoint
     const jwksUrl = "https://app.dynamic.xyz/api/v0/sdk/" + envId + "/.well-known/jwks";
     
+    // SECURITY: JWKS fetch is MANDATORY - we cannot verify JWT without it
     let jwks;
     try {
       const jwksResponse = await fetch(jwksUrl);
@@ -105,81 +106,107 @@ export const JWT_VERIFY_AND_SIGN_LIT_ACTION_CODE = `
       }
       jwks = await jwksResponse.json();
     } catch (e) {
-      // If JWKS fetch fails, fall back to claims-only verification
-      // This is less secure but maintains functionality
-      console.log("JWKS fetch failed: " + (e.message || e) + ", falling back to claims verification");
-      jwks = null;
+      // SECURITY: Fail if JWKS cannot be fetched - do not fall back to claims-only
+      Lit.Actions.setResponse({response: JSON.stringify({
+        success: false, 
+        error: "Failed to fetch JWKS for JWT verification: " + (e.message || e)
+      })});
+      return;
     }
 
     // ========================================
-    // 4. VERIFY JWT SIGNATURE (if JWKS available)
+    // 4. VERIFY JWT SIGNATURE (MANDATORY)
     // ========================================
-    if (jwks && jwks.keys && jwks.keys.length > 0) {
-      const kid = header.kid;
-      const alg = header.alg || "RS256";
-      
-      // Find matching key
-      let matchingKey = null;
-      for (const key of jwks.keys) {
-        if (key.kid === kid || (!kid && key.use === "sig")) {
-          matchingKey = key;
-          break;
-        }
+    // SECURITY: Signature verification is MANDATORY - reject if it cannot be performed
+    if (!jwks || !jwks.keys || jwks.keys.length === 0) {
+      Lit.Actions.setResponse({response: JSON.stringify({
+        success: false, 
+        error: "No keys found in JWKS response"
+      })});
+      return;
+    }
+    
+    const kid = header.kid;
+    const alg = header.alg || "RS256";
+    
+    // Find matching key
+    let matchingKey = null;
+    for (const key of jwks.keys) {
+      if (key.kid === kid || (!kid && key.use === "sig")) {
+        matchingKey = key;
+        break;
       }
+    }
+    
+    if (!matchingKey) {
+      // If no matching key found by kid, use the first available key
+      matchingKey = jwks.keys[0];
+    }
+    
+    if (!matchingKey) {
+      Lit.Actions.setResponse({response: JSON.stringify({
+        success: false, 
+        error: "No suitable signing key found in JWKS"
+      })});
+      return;
+    }
+    
+    if (alg !== "RS256") {
+      Lit.Actions.setResponse({response: JSON.stringify({
+        success: false, 
+        error: "Unsupported JWT algorithm: " + alg + ". Only RS256 is supported."
+      })});
+      return;
+    }
+    
+    // SECURITY: Cryptographic signature verification - MUST succeed
+    try {
+      // Import the public key
+      const keyData = {
+        kty: matchingKey.kty,
+        n: matchingKey.n,
+        e: matchingKey.e,
+        alg: "RS256",
+        use: "sig"
+      };
       
-      if (!matchingKey) {
-        // If no matching key found, use the first available key
-        matchingKey = jwks.keys[0];
-      }
+      const cryptoKey = await crypto.subtle.importKey(
+        "jwk",
+        keyData,
+        { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+        false,
+        ["verify"]
+      );
       
-      if (matchingKey && alg === "RS256") {
-        // For RS256, we need to verify the signature
-        // The Lit Action environment has access to crypto APIs
-        try {
-          // Import the public key
-          const keyData = {
-            kty: matchingKey.kty,
-            n: matchingKey.n,
-            e: matchingKey.e,
-            alg: "RS256",
-            use: "sig"
-          };
-          
-          const cryptoKey = await crypto.subtle.importKey(
-            "jwk",
-            keyData,
-            { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-            false,
-            ["verify"]
-          );
-          
-          // Prepare data to verify
-          const signedData = headerB64 + "." + payloadB64;
-          const signedDataBytes = new TextEncoder().encode(signedData);
-          
-          // Decode signature from base64url
-          const sigPadded = signatureB64.replace(/-/g, "+").replace(/_/g, "/");
-          const sigPad = sigPadded.length % 4;
-          const sigFinal = sigPad ? sigPadded + "=".repeat(4 - sigPad) : sigPadded;
-          const sigBytes = Uint8Array.from(atob(sigFinal), c => c.charCodeAt(0));
-          
-          // Verify signature
-          const isValid = await crypto.subtle.verify(
-            { name: "RSASSA-PKCS1-v1_5" },
-            cryptoKey,
-            sigBytes,
-            signedDataBytes
-          );
-          
-          if (!isValid) {
-            Lit.Actions.setResponse({response: JSON.stringify({success: false, error: "JWT signature verification failed"})});
-            return;
-          }
-        } catch (verifyError) {
-          // If cryptographic verification fails, log but continue with claims check
-          console.log("Signature verification error:", verifyError.message);
-        }
+      // Prepare data to verify
+      const signedData = headerB64 + "." + payloadB64;
+      const signedDataBytes = new TextEncoder().encode(signedData);
+      
+      // Decode signature from base64url
+      const sigPadded = signatureB64.replace(/-/g, "+").replace(/_/g, "/");
+      const sigPad = sigPadded.length % 4;
+      const sigFinal = sigPad ? sigPadded + "=".repeat(4 - sigPad) : sigPadded;
+      const sigBytes = Uint8Array.from(atob(sigFinal), c => c.charCodeAt(0));
+      
+      // Verify signature
+      const isValid = await crypto.subtle.verify(
+        { name: "RSASSA-PKCS1-v1_5" },
+        cryptoKey,
+        sigBytes,
+        signedDataBytes
+      );
+      
+      if (!isValid) {
+        Lit.Actions.setResponse({response: JSON.stringify({success: false, error: "JWT signature verification failed"})});
+        return;
       }
+    } catch (verifyError) {
+      // SECURITY: Fail if cryptographic verification throws - do not continue
+      Lit.Actions.setResponse({response: JSON.stringify({
+        success: false, 
+        error: "JWT signature verification error: " + (verifyError.message || verifyError)
+      })});
+      return;
     }
 
     // ========================================
