@@ -7,20 +7,11 @@ import {
   type Address,
   type Hex,
 } from "viem";
-import { publicKeyToAddress } from "viem/accounts";
+import { publicKeyToAddress, privateKeyToAccount } from "viem/accounts";
 import {
   AUTH_METHOD_SCOPES,
   JWT_VERIFY_AND_SIGN_LIT_ACTION_CODE,
 } from "./actions/verifyJwt";
-
-import type {
-  SessionSigsMap,
-  AuthMethod,
-  LitResourceAbilityRequest,
-} from "@lit-protocol/types";
-
-// Re-export types for use by other modules
-export type { SessionSigsMap, AuthMethod, LitResourceAbilityRequest };
 
 /**
  * Configuration for signing mode
@@ -58,23 +49,11 @@ export interface SignedTransaction {
 /**
  * Mint a new PKP (Programmable Key Pair) for wallet creation
  * 
- * The PKP is minted with the server wallet as a permitted signer.
- * However, signing is ONLY allowed when the user provides a valid JWT
- * that matches the authMethodId stored with the wallet.
- * 
- * Security model:
- * - Server wallet can technically sign with the PKP
- * - But the Lit Action verifies JWT before allowing any signature
- * - Without valid JWT from the user, no signing occurs
+ * In v8, PKP minting is done through litClient.mintWithEoa
  * 
  * @param userEmail - The user's email from Dynamic Labs JWT
  */
 export async function mintPKP(userEmail: string): Promise<PKPInfo> {
-  // Dynamic imports to avoid loading at module initialization
-  const { LitContracts } = await import("@lit-protocol/contracts-sdk");
-  const { LIT_NETWORK } = await import("@lit-protocol/constants");
-  const { ethers } = await import("ethers");
-  
   if (!userEmail) {
     throw new Error("User email is required for PKP minting");
   }
@@ -89,85 +68,72 @@ export async function mintPKP(userEmail: string): Promise<PKPInfo> {
   console.log(`🔐 Auth method ID for ${userEmail}: ${authMethodId}`);
 
   // Ensure private key has 0x prefix
-  const formattedKey = privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`;
+  const formattedKey = (privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`) as `0x${string}`;
   
-  // Get server wallet address
-  const serverWallet = new ethers.Wallet(formattedKey);
-  const serverWalletAddress = serverWallet.address;
+  // Get server wallet address using viem
+  const serverAccount = privateKeyToAccount(formattedKey);
+  const serverWalletAddress = serverAccount.address;
   console.log(`🔐 Server wallet address: ${serverWalletAddress}`);
 
-  console.log("🔄 Connecting LitContracts client to network...");
-  const litContracts = new LitContracts({
-    privateKey: formattedKey,
-    network: LIT_NETWORK.DatilDev,
-    debug: false,
-  });
-  await litContracts.connect();
-  console.log("✅ Connected LitContracts client to network");
-
+  console.log("🔄 Getting Lit client...");
+  const litClient = await getLitClient();
+  
   console.log("🔄 Minting new PKP...");
   
   try {
-    // First mint the PKP
-    const mintCost = await litContracts.pkpNftContract.read.mintCost();
-    console.log(`💰 Mint cost: ${mintCost.toString()} wei`);
+    // In v8, use litClient.mintWithEoa for PKP minting
+    const mintResult = await litClient.mintWithEoa({
+      account: serverAccount,
+    });
     
-    // Check server wallet balance
-    const provider = litContracts.signer?.provider;
-    if (provider) {
-      const balance = await provider.getBalance(serverWalletAddress);
-      console.log(`💰 Server wallet balance: ${balance.toString()} wei`);
-      
-      if (balance.lt(mintCost)) {
-        throw new Error(`Insufficient funds: wallet has ${ethers.utils.formatEther(balance)} ETH, needs at least ${ethers.utils.formatEther(mintCost)} ETH for minting. Fund your server wallet (${serverWalletAddress}) on Chronicle Yellowstone testnet.`);
-      }
-    }
+    // Log mint result with BigInt handling
+    console.log("🔐 Mint result keys:", Object.keys(mintResult));
+    console.log("🔐 Mint result data:", mintResult.data);
+    console.log("🔐 Mint result data keys:", mintResult.data ? Object.keys(mintResult.data) : "no data");
     
-    // Use mintGrantAndBurnNext - this creates a PKP that the contract controls
-    // Then we'll add the server wallet as a permitted address
-    const mintTx = await litContracts.pkpNftContract.write.mintNext(2, { value: mintCost });
-    console.log(`📤 Mint transaction sent: ${mintTx.hash}`);
-    const mintReceipt = await mintTx.wait();
+    // In v8, the PKP info is in mintResult.data
+    const data = mintResult.data as { tokenId?: bigint | string; publicKey?: string; pubkey?: string; ethAddress?: string } | undefined;
     
-    // Extract tokenId from Transfer event
-    let tokenId: string | undefined;
-    for (const log of mintReceipt.logs) {
-      try {
-        // Try parsing as Transfer event
-        if (log.topics && log.topics.length >= 4) {
-          // Transfer(from, to, tokenId) - tokenId is the 4th topic
-          tokenId = BigInt(log.topics[3]).toString();
-          break;
-        }
-      } catch {
-        continue;
-      }
-    }
+    // v8 might use different property names - check for pubkey or publicKey
+    const tokenId = data?.tokenId || mintResult.tokenId;
+    const rawPubkey = data?.publicKey || data?.pubkey || mintResult.publicKey;
+    const ethAddress = data?.ethAddress || mintResult.ethAddress;
     
     if (!tokenId) {
-      throw new Error("Could not extract tokenId from mint transaction");
+      throw new Error("No tokenId returned from mintWithEoa");
+    }
+    
+    if (!rawPubkey) {
+      throw new Error("No publicKey returned from mintWithEoa");
     }
     
     console.log(`✅ Minted PKP with tokenId: ${tokenId}`);
     
-    // Get public key
-    const publicKey = await litContracts.pkpNftContract.read.getPubkey(tokenId);
-    const pubkey = publicKey.startsWith("0x") ? publicKey : `0x${publicKey}`;
+    const pubkey = rawPubkey.startsWith("0x") ? rawPubkey : `0x${rawPubkey}`;
     
-    // Derive ETH address
-    const pkpEthAddress = publicKeyToAddress(pubkey as `0x${string}`);
+    // Derive ETH address from public key if not provided
+    const pkpEthAddress = ethAddress || publicKeyToAddress(pubkey as `0x${string}`);
     
     console.log(`✅ Public key: ${pubkey}`);
     console.log(`✅ ETH address: ${pkpEthAddress}`);
     
     // Add the server wallet as a permitted address with SignAnything scope
     console.log("🔄 Adding server wallet as permitted address...");
-    const addPermittedTx = await litContracts.pkpPermissionsContract.write.addPermittedAddress(
-      tokenId,
-      serverWalletAddress,
-      [AUTH_METHOD_SCOPES.SIGN_ANYTHING]
-    );
-    await addPermittedTx.wait();
+    console.log(`🔐 Using pubkey for permissions: ${pubkey}`);
+    
+    // v8 API: getPKPPermissionsManager needs pkpIdentifier as a nested object
+    const pkpPermissionsManager = await litClient.getPKPPermissionsManager({
+      pkpIdentifier: {
+        pubkey: pubkey,
+      },
+      account: serverAccount,
+    });
+    
+    // Add the server wallet address with SignAnything scope
+    await pkpPermissionsManager.addPermittedAddress({
+      address: serverWalletAddress,
+      scopes: ["sign-anything"],
+    });
     console.log(`✅ Server wallet added as permitted address`);
     
     console.log(`✅ JWT verification ID: ${authMethodId}`);
@@ -228,67 +194,55 @@ function verifyJwtAndGetEmail(jwt: string, expectedAuthMethodId: string): string
 }
 
 /**
- * Get session signatures using the server wallet
- * 
- * The server wallet is a permitted address on the PKP with SignAnything scope.
+ * Create an EOA auth context for signing operations
+ * In v8, this replaces session sigs generation
  */
-async function getSessionSigsWithServerWallet(): Promise<SessionSigsMap> {
-  console.log("  📋 Importing dependencies for session sigs...");
-  const { LIT_ABILITY } = await import("@lit-protocol/constants");
-  const { LitPKPResource, LitActionResource, createSiweMessage, generateAuthSig } = await import("@lit-protocol/auth-helpers");
-  const { ethers } = await import("ethers");
+async function createEoaAuthContext() {
+  console.log("  📋 Creating EOA auth context...");
+  const { createAuthManager, storagePlugins } = await import("@lit-protocol/auth");
   
-  console.log("  📋 Getting Lit client for session sigs...");
   const litClient = await getLitClient();
   
   const privateKey = process.env.ETHEREUM_PRIVATE_KEY;
   if (!privateKey) {
-    throw new Error("ETHEREUM_PRIVATE_KEY required for session sigs");
+    throw new Error("ETHEREUM_PRIVATE_KEY required for auth context");
   }
   
-  const formattedKey = privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`;
-  const wallet = new ethers.Wallet(formattedKey);
-  console.log("  📋 Using server wallet:", wallet.address);
+  const formattedKey = (privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`) as `0x${string}`;
+  const serverAccount = privateKeyToAccount(formattedKey);
+  console.log("  📋 Using server wallet:", serverAccount.address);
   
-  const expirationTime = new Date(Date.now() + 1000 * 60 * 10).toISOString();
-  console.log("  📋 Session expiration:", expirationTime);
-  
-  console.log("  📋 Calling litClient.getSessionSigs...");
-  // Use getSessionSigs with SIWE auth
-  const sessionSigs = await litClient.getSessionSigs({
-    chain: "ethereum",
-    expiration: expirationTime,
-    resourceAbilityRequests: [
-      {
-        resource: new LitPKPResource("*"),
-        ability: LIT_ABILITY.PKPSigning,
-      },
-      {
-        resource: new LitActionResource("*"),
-        ability: LIT_ABILITY.LitActionExecution,
-      },
-    ],
-    authNeededCallback: async (params: { uri?: string; expiration?: string; resourceAbilityRequests?: LitResourceAbilityRequest[] }) => {
-      console.log("  📋 authNeededCallback triggered, creating SIWE message...");
-      const toSign = await createSiweMessage({
-        uri: params.uri!,
-        expiration: params.expiration!,
-        resources: params.resourceAbilityRequests!,
-        walletAddress: wallet.address,
-        nonce: await litClient.getLatestBlockhash(),
-        litNodeClient: litClient,
-      });
-      
-      console.log("  📋 Generating auth sig...");
-      return generateAuthSig({
-        signer: wallet,
-        toSign,
-      });
-    },
+  // Use localStorageNode for server-side operations
+  const authManager = createAuthManager({
+    storage: storagePlugins.localStorageNode({
+      appName: "vencura",
+      networkName: "naga-dev",
+      storagePath: "/tmp/lit-auth-storage",
+    }),
   });
   
-  console.log("  📋 Session sigs obtained successfully");
-  return sessionSigs;
+  const expirationTime = new Date(Date.now() + 1000 * 60 * 15).toISOString(); // 15 minutes
+  console.log("  📋 Auth context expiration:", expirationTime);
+  
+  console.log("  📋 Creating EOA auth context...");
+  const authContext = await authManager.createEoaAuthContext({
+    config: { account: serverAccount },
+    authConfig: {
+      domain: "vencura.app",
+      statement: "Authorize Lit session for wallet operations",
+      resources: [
+        ["lit-action-execution", "*"],
+        ["pkp-signing", "*"],
+        ["access-control-condition-signing", "*"],
+        ["access-control-condition-decryption", "*"],
+      ],
+      expiration: expirationTime,
+    },
+    litClient,
+  });
+  
+  console.log("  📋 EOA auth context created successfully");
+  return authContext;
 }
 
 /**
@@ -296,16 +250,8 @@ async function getSessionSigsWithServerWallet(): Promise<SessionSigsMap> {
  * 
  * Security model:
  * 1. Server verifies JWT matches the wallet's authMethodId
- * 2. Only if verified, server uses its session sigs to sign with PKP
+ * 2. Only if verified, server uses its auth context to sign with PKP
  * 3. Without valid JWT, no signing occurs
- * 
- * NOTE: This is the HYBRID mode where JWT verification happens server-side.
- * For true non-custodial, use signWithLitAction instead.
- * 
- * @param pkpPublicKey - The PKP's public key
- * @param toSign - The data to sign (as Uint8Array)
- * @param userJwt - The user's Dynamic Labs JWT
- * @param authMethodId - The auth method ID (hash of user's email)
  */
 async function signWithPkpServerSideVerification(
   pkpPublicKey: string,
@@ -329,17 +275,16 @@ async function signWithPkpServerSideVerification(
     throw clientError;
   }
   
-  // Get session sigs using server wallet (which is a permitted address on the PKP)
-  console.log("🔐 [HYBRID MODE] Getting session sigs for signing...");
-  let sessionSigs;
+  // Get auth context using server wallet
+  console.log("🔐 [HYBRID MODE] Creating auth context for signing...");
+  let authContext;
   try {
-    sessionSigs = await getSessionSigsWithServerWallet();
-    console.log("✅ [HYBRID MODE] Session sigs obtained");
-  } catch (sessionError: unknown) {
-    const err = sessionError as { message?: string; errorCode?: string };
-    console.error("❌ [HYBRID MODE] Failed to get session sigs:", err.message || sessionError);
-    if (err.errorCode) console.error("Error code:", err.errorCode);
-    throw sessionError;
+    authContext = await createEoaAuthContext();
+    console.log("✅ [HYBRID MODE] Auth context obtained");
+  } catch (authError: unknown) {
+    const err = authError as { message?: string; errorCode?: string };
+    console.error("❌ [HYBRID MODE] Failed to create auth context:", err.message || authError);
+    throw authError;
   }
   
   console.log("🔐 [HYBRID MODE] Signing with PKP...");
@@ -347,18 +292,16 @@ async function signWithPkpServerSideVerification(
   
   let signingResult;
   try {
-    // Sign directly with pkpSign
-    signingResult = await litClient.pkpSign({
+    // In v8, use litClient.chain.ethereum.pkpSign with authContext
+    signingResult = await litClient.chain.ethereum.pkpSign({
       pubKey: pkpPublicKey,
       toSign,
-      sessionSigs,
+      authContext,
     });
     console.log("✅ [HYBRID MODE] PKP sign returned");
   } catch (signError: unknown) {
     const err = signError as { message?: string; errorCode?: string; details?: unknown };
     console.error("❌ [HYBRID MODE] PKP signing failed:", err.message || signError);
-    if (err.errorCode) console.error("Error code:", err.errorCode);
-    if (err.details) console.error("Error details:", JSON.stringify(err.details, null, 2));
     throw signError;
   }
   
@@ -379,14 +322,6 @@ async function signWithPkpServerSideVerification(
  * 3. Lit Action validates claims and authMethodId
  * 4. Only if all checks pass, Lit nodes perform threshold signing
  * 5. Server CANNOT sign without valid user JWT
- * 
- * This is more secure than hybrid mode because JWT verification happens
- * on the decentralized Lit Network, not on the server.
- * 
- * @param pkpPublicKey - The PKP's public key
- * @param toSign - The data to sign (as Uint8Array)
- * @param userJwt - The user's Dynamic Labs JWT
- * @param authMethodId - The auth method ID (hash of user's email)
  */
 async function signWithLitAction(
   pkpPublicKey: string,
@@ -407,18 +342,16 @@ async function signWithLitAction(
     throw clientError;
   }
   
-  // Get session sigs (still needed for executeJs, but the Lit Action
-  // will independently verify the JWT before signing)
-  console.log("🔐 Getting session sigs for Lit Action execution...");
-  let sessionSigs;
+  // Get auth context for executeJs
+  console.log("🔐 Creating auth context for Lit Action execution...");
+  let authContext;
   try {
-    sessionSigs = await getSessionSigsWithServerWallet();
-    console.log("✅ Session sigs obtained");
-  } catch (sessionError: unknown) {
-    const err = sessionError as { message?: string; errorCode?: string };
-    console.error("❌ Failed to get session sigs:", err.message || sessionError);
-    if (err.errorCode) console.error("Error code:", err.errorCode);
-    throw sessionError;
+    authContext = await createEoaAuthContext();
+    console.log("✅ Auth context obtained");
+  } catch (authError: unknown) {
+    const err = authError as { message?: string; errorCode?: string };
+    console.error("❌ Failed to create auth context:", err.message || authError);
+    throw authError;
   }
   
   // Get Dynamic environment ID from env or extract from JWT
@@ -432,10 +365,10 @@ async function signWithLitAction(
   let result;
   try {
     // Execute the Lit Action on the decentralized Lit Network
-    // The JWT verification happens INSIDE the Lit Action, not on the server
+    // In v8, use authContext instead of sessionSigs
     result = await litClient.executeJs({
       code: JWT_VERIFY_AND_SIGN_LIT_ACTION_CODE,
-      sessionSigs,
+      authContext,
       jsParams: {
         jwt: userJwt,
         expectedAuthMethodId: authMethodId,
@@ -447,59 +380,87 @@ async function signWithLitAction(
   } catch (executeError: unknown) {
     const err = executeError as { message?: string; errorCode?: string; details?: unknown };
     console.error("❌ Lit Action execution failed:", err.message || executeError);
-    if (err.errorCode) console.error("Error code:", err.errorCode);
-    if (err.details) console.error("Error details:", JSON.stringify(err.details, null, 2));
     throw executeError;
   }
   
   console.log("🔐 Lit Action result received");
   console.log("🔐 Result response:", result.response);
   console.log("🔐 Result logs:", result.logs);
+  console.log("🔐 Result signatures:", result.signatures);
   
-  // Parse the response from Lit Action
+  // Parse the response from Lit Action - in v8, response might already be an object
   if (result.response) {
-    try {
-      const response = JSON.parse(result.response as string);
-      if (!response.success) {
-        console.error("❌ Lit Action returned failure:", response.error);
-        throw new Error(`Lit Action verification failed: ${response.error}`);
+    let response: { success: boolean; error?: string; email?: string };
+    
+    if (typeof result.response === "string") {
+      try {
+        response = JSON.parse(result.response);
+      } catch (parseError) {
+        console.error("❌ Failed to parse Lit Action response string:", result.response);
+        throw parseError;
       }
-      console.log(`✅ JWT verified by Lit Network for: ${response.email}`);
-    } catch (parseError) {
-      console.error("❌ Failed to parse Lit Action response:", result.response);
-      throw parseError;
+    } else {
+      // Already an object in v8
+      response = result.response as { success: boolean; error?: string; email?: string };
     }
+    
+    if (!response.success) {
+      console.error("❌ Lit Action returned failure:", response.error);
+      throw new Error(`Lit Action verification failed: ${response.error}`);
+    }
+    console.log(`✅ JWT verified by Lit Network for: ${response.email}`);
   } else {
     console.warn("⚠️ No response from Lit Action");
   }
   
-  // Extract signature from result
-  // The signature is in result.signatures under the name we specified ("sig")
+  // Extract signature from result - v8 may return signatures differently
   const signatures = result.signatures as Record<string, {
-    r: string;
-    s: string;
-    recid: number;
-    signature: string;
-    publicKey: string;
-    dataSigned: string;
+    r?: string;
+    s?: string;
+    recid?: number;
+    recoveryId?: number;
+    signature?: string;
+    publicKey?: string;
+    dataSigned?: string;
   }> | undefined;
   
   console.log("🔐 Signatures received:", signatures ? Object.keys(signatures) : "none");
   
   if (!signatures || !signatures.sig) {
-    console.error("❌ No signature in result. Full result:", JSON.stringify(result, null, 2));
+    console.error("❌ No signature in result. Result keys:", Object.keys(result));
+    console.error("❌ Signatures object:", signatures);
     throw new Error("No signature returned from Lit Action. JWT verification may have failed.");
   }
   
   const sig = signatures.sig;
+  console.log("🔐 Signature object keys:", Object.keys(sig));
   
-  // Format the signature as 0x{r}{s}{v}
-  // r and s are 32 bytes each (64 hex chars), v is recovery id + 27
-  const r = sig.r.startsWith("0x") ? sig.r.slice(2) : sig.r;
-  const s = sig.s.startsWith("0x") ? sig.s.slice(2) : sig.s;
-  const v = (sig.recid + 27).toString(16).padStart(2, "0");
+  let r: string;
+  let s: string;
+  let recid: number;
   
+  // Handle v8 signature format - signature is r+s concatenated (64 bytes = 128 hex chars)
+  if (sig.signature) {
+    // v8 format: { signature: "0x{r}{s}", recoveryId: 0|1 }
+    const sigHex = sig.signature.startsWith("0x") ? sig.signature.slice(2) : sig.signature;
+    r = sigHex.slice(0, 64);  // First 32 bytes (64 hex chars)
+    s = sigHex.slice(64, 128); // Second 32 bytes (64 hex chars)
+    recid = sig.recoveryId ?? 0;
+    console.log("🔐 Using v8 signature format (concatenated r+s)");
+  } else if (sig.r && sig.s) {
+    // v7 format: { r: "0x...", s: "0x...", recid: 0|1 }
+    r = sig.r.startsWith("0x") ? sig.r.slice(2) : sig.r;
+    s = sig.s.startsWith("0x") ? sig.s.slice(2) : sig.s;
+    recid = sig.recid ?? 0;
+    console.log("🔐 Using v7 signature format (separate r, s)");
+  } else {
+    console.error("❌ Unknown signature format:", sig);
+    throw new Error("Unknown signature format returned from Lit Action");
+  }
+  
+  const v = (recid + 27).toString(16).padStart(2, "0");
   const fullSignature = `0x${r}${s}${v}`;
+  console.log("🔐 Full signature:", fullSignature);
   
   console.log("✅ PKP signing successful (non-custodial mode via Lit Action)");
   return fullSignature;
@@ -507,11 +468,6 @@ async function signWithLitAction(
 
 /**
  * Sign data with PKP - uses the configured signing mode
- * 
- * @param pkpPublicKey - The PKP's public key
- * @param toSign - The data to sign (as Uint8Array)
- * @param userJwt - The user's Dynamic Labs JWT
- * @param authMethodId - The auth method ID (hash of user's email)
  */
 async function signWithPkp(
   pkpPublicKey: string,
@@ -528,15 +484,6 @@ async function signWithPkp(
 
 /**
  * Sign a message using a PKP
- * 
- * Security model depends on USE_LIT_ACTION_SIGNING:
- * - TRUE (default): JWT verified inside Lit Action on decentralized network (non-custodial)
- * - FALSE: JWT verified server-side before signing (hybrid mode)
- * 
- * @param pkpPublicKey - The PKP's public key
- * @param message - The message to sign
- * @param userJwt - The user's Dynamic Labs JWT
- * @param authMethodId - The auth method ID (hash of user's email)
  */
 export async function signMessage(
   pkpPublicKey: string,
@@ -547,7 +494,6 @@ export async function signMessage(
   const messageHash = hashMessage(message);
   const messageBytes = toBytes(messageHash);
 
-  // Sign with PKP (mode determined by USE_LIT_ACTION_SIGNING)
   const signature = await signWithPkp(
     pkpPublicKey,
     messageBytes,
@@ -564,15 +510,6 @@ export async function signMessage(
 
 /**
  * Sign a transaction using a PKP
- * 
- * Security model depends on USE_LIT_ACTION_SIGNING:
- * - TRUE (default): JWT verified inside Lit Action on decentralized network (non-custodial)
- * - FALSE: JWT verified server-side before signing (hybrid mode)
- * 
- * @param pkpPublicKey - The PKP's public key
- * @param transaction - Transaction parameters
- * @param userJwt - The user's Dynamic Labs JWT
- * @param authMethodId - The auth method ID (hash of user's email)
  */
 export async function signTransaction(
   pkpPublicKey: string,
@@ -603,7 +540,6 @@ export async function signTransaction(
   const txHash = keccak256(serializedTx);
   const txBytes = toBytes(txHash);
 
-  // Sign with PKP (mode determined by USE_LIT_ACTION_SIGNING)
   const signature = await signWithPkp(
     pkpPublicKey,
     txBytes,
@@ -612,17 +548,14 @@ export async function signTransaction(
   );
 
   // Parse the signature components
-  // Signature format: 0x{r}{s}{v} where r and s are 64 hex chars each, v is 2 hex chars
   const r = `0x${signature.slice(2, 66)}` as Hex;
   const s = `0x${signature.slice(66, 130)}` as Hex;
   const rawV = parseInt(signature.slice(130, 132), 16);
   
-  // Convert raw v (27 or 28) to EIP-155 v value: chainId * 2 + 35 + recoveryParam
-  // Use BigInt for the calculation to avoid mixing types
+  // Convert raw v (27 or 28) to EIP-155 v value
   const recoveryParam = rawV - 27;
   const eip155V = BigInt(transaction.chainId) * 2n + 35n + BigInt(recoveryParam);
 
-  // Serialize with signature using the EIP-155 v value
   const signedTx = serializeTransaction(tx, {
     r,
     s,
@@ -640,28 +573,24 @@ export async function signTransaction(
  */
 export async function addPermittedAuthMethod(
   pkpTokenId: string,
-  authMethod: AuthMethod
+  authMethod: { authMethodType: number; accessToken: string }
 ): Promise<{ success: boolean; transactionHash?: string }> {
-  const { LitContracts } = await import("@lit-protocol/contracts-sdk");
-  const { LIT_NETWORK } = await import("@lit-protocol/constants");
-  const { createEthersSigner } = await import("./viemToEthers");
-
   const privateKey = process.env.ETHEREUM_PRIVATE_KEY;
   if (!privateKey) {
     throw new Error("ETHEREUM_PRIVATE_KEY environment variable is required");
   }
 
-  const signer = await createEthersSigner(privateKey);
-
-  const litContracts = new LitContracts({
-    signer,
-    network: LIT_NETWORK.DatilDev,
-    debug: false,
+  const formattedKey = (privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`) as `0x${string}`;
+  const serverAccount = privateKeyToAccount(formattedKey);
+  
+  const litClient = await getLitClient();
+  
+  const pkpPermissionsManager = await litClient.getPKPPermissionsManager({
+    account: serverAccount,
   });
-  await litContracts.connect();
 
-  const tx = await litContracts.addPermittedAuthMethod({
-    pkpTokenId,
+  const tx = await pkpPermissionsManager.addPermittedAuthMethod({
+    tokenId: pkpTokenId,
     authMethodType: authMethod.authMethodType,
     authMethodId: authMethod.accessToken,
     authMethodScopes: [1], // Sign anything
@@ -672,4 +601,3 @@ export async function addPermittedAuthMethod(
     transactionHash: tx.transactionHash,
   };
 }
-

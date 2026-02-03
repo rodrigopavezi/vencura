@@ -11,6 +11,8 @@
  * 3. Validates claims (expiration, email)
  * 4. Checks authMethodId matches
  * 5. Signs with the PKP only if all checks pass
+ * 
+ * NOTE: In Lit SDK v8 (Naga), jsParams are accessed via jsParams.* (not as globals)
  */
 
 // Lit Action that verifies JWT cryptographically and signs data
@@ -18,6 +20,13 @@
 export const JWT_VERIFY_AND_SIGN_LIT_ACTION_CODE = `
 (async () => {
   try {
+    // In v8, access jsParams properties via jsParams.*
+    const jwt = jsParams.jwt;
+    const expectedAuthMethodId = jsParams.expectedAuthMethodId;
+    const toSign = jsParams.toSign;
+    const publicKey = jsParams.publicKey;
+    const dynamicEnvironmentId = jsParams.dynamicEnvironmentId;
+
     // ========================================
     // 1. VALIDATE INPUTS
     // ========================================
@@ -208,6 +217,7 @@ export const JWT_VERIFY_AND_SIGN_LIT_ACTION_CODE = `
     // ========================================
     
     // Compute auth method ID from email using keccak256
+    // In v8, ethers is still available as a global in Lit Actions
     const emailBytes = new TextEncoder().encode(email.toLowerCase());
     const computedAuthMethodId = ethers.utils.keccak256(emailBytes);
     
@@ -251,8 +261,14 @@ export const JWT_VERIFY_AND_SIGN_LIT_ACTION_CODE = `
 `;
 
 // Legacy action for backwards compatibility (less secure - no signature verification)
+// Updated for v8 jsParams access pattern
 export const JWT_VERIFY_LIT_ACTION_CODE_LEGACY = `
 (async () => {
+  const jwt = jsParams.jwt;
+  const expectedAuthMethodId = jsParams.expectedAuthMethodId;
+  const toSign = jsParams.toSign;
+  const publicKey = jsParams.publicKey;
+
   if (!jwt) {
     Lit.Actions.setResponse({response: JSON.stringify({error: "No JWT"})});
     return;
