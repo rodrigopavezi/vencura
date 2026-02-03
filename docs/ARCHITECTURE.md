@@ -91,19 +91,43 @@
 - Server wallet pays gas for PKP minting but cannot sign without valid user JWT
 - Session signatures are generated using SIWE (Sign-In with Ethereum) protocol
 
-### 2. Authentication Flow with Dynamic Labs
+### 2. TRUE NON-CUSTODIAL Authentication with Lit Actions
+
+**Decision:** Use Lit Actions for JWT verification directly on the decentralized Lit Network, making the system truly non-custodial.
+
+**Rationale:**
+- **Decentralized verification**: JWT is verified INSIDE the Lit Action running on Lit nodes, not on our server
+- **Server cannot forge signatures**: Even with full server access, an attacker cannot sign without a valid user JWT
+- **Cryptographic JWT verification**: The Lit Action fetches Dynamic Labs' JWKS and verifies JWT signature using RS256
+
+**Security Model (True Non-Custodial):**
+```
+User (Dynamic Labs) → JWT → Server passes to Lit → [LIT NODES verify JWT + sign] → Signature
+                                                          ↑
+                                               Decentralized trust boundary
+```
+
+**Lit Action Flow:**
+1. Fetch Dynamic Labs JWKS (public keys) from `https://app.dynamic.xyz/api/v0/sdk/{envId}/.well-known/jwks`
+2. Verify JWT signature using RS256 with the public key
+3. Validate JWT claims (expiration, not-before, issued-at)
+4. Compute `authMethodId` from JWT email using keccak256
+5. Compare with expected `authMethodId` from the wallet
+6. Only if ALL checks pass: Sign with PKP using threshold cryptography
+
+**Configuration:**
+The signing mode is controlled by `USE_LIT_ACTION_SIGNING` in `lib/lit/service.ts`:
+- `true` (default): True non-custodial mode with Lit Action verification
+- `false`: Hybrid mode with server-side JWT verification (less secure, faster)
+
+### 3. Authentication Flow with Dynamic Labs
 
 **Decision:** Use Dynamic Labs for user authentication with JWT tokens passed through to Lit Protocol.
 
 **Rationale:**
 - **Email-based onboarding**: Users can create wallets without existing crypto wallets
-- **JWT verification**: Server-side JWT verification ensures only authenticated users can sign
+- **JWT verification**: JWT is verified on Lit Network nodes (not server) for true non-custodial security
 - **Single identity**: User's email becomes the canonical identifier across the system
-
-**Security Model:**
-```
-User (Dynamic Labs) → JWT → Server → Verify JWT → Lit Protocol → Sign with PKP
-```
 
 ### 3. tRPC for API Layer
 
@@ -178,28 +202,32 @@ CO_SIGNER proposes → PENDING → OWNER reviews → APPROVED/REJECTED → EXECU
 
 ## Weaknesses
 
-### 1. JWT Verification Limitations
+### 1. ~~JWT Verification Limitations~~ (RESOLVED)
 
-**Weakness:** JWT verification is done server-side by decoding without cryptographic signature verification against Dynamic Labs' public key.
+**Previous Weakness:** JWT verification was done server-side by decoding without cryptographic signature verification.
 
-**Current Implementation:**
+**Resolution:** Implemented true non-custodial JWT verification using Lit Actions:
+- JWT is now verified INSIDE the Lit Action running on decentralized Lit nodes
+- Lit Action fetches Dynamic Labs' JWKS and verifies RS256 signature
+- Server cannot forge signatures even with full access
+- See `lib/lit/actions/verifyJwt.ts` for implementation
+
+**Current Security Model:**
 ```typescript
-// Decode without verification
-const payload = JSON.parse(Buffer.from(parts[1], "base64").toString());
+// JWT verified on Lit Network nodes with cryptographic signature verification
+const jwksUrl = "https://app.dynamic.xyz/api/v0/sdk/" + envId + "/.well-known/jwks";
+// RS256 signature verification using crypto.subtle.verify()
+const isValid = await crypto.subtle.verify({ name: "RSASSA-PKCS1-v1_5" }, cryptoKey, sigBytes, signedDataBytes);
 ```
-
-**Impact:** A sophisticated attacker with access to the server could potentially craft valid-looking JWTs.
-
-**Mitigation:** In production, implement proper JWT signature verification using Dynamic Labs' public key or JWKS endpoint.
 
 ### 2. Single Point of Failure: Server Wallet
 
 **Weakness:** The server's Ethereum private key (`ETHEREUM_PRIVATE_KEY`) is used to:
 - Pay gas for PKP minting
-- Act as a permitted address on PKPs for signing
+- Provide session signatures for Lit Action execution
 
 **Impact:** If the server wallet is compromised:
-- Attacker cannot sign without valid user JWT
+- Attacker STILL cannot sign without valid user JWT (verified on Lit nodes)
 - But attacker could potentially drain gas funds
 - Could add malicious permitted addresses to new PKPs
 
